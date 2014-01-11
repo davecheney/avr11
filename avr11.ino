@@ -2,19 +2,91 @@
 #include "avr11.h"
 
 // signed integer registers
-int32_t R[8];
-word	PS; // processor status
-word	PC; // address of current instruction
-word KSP, USP; // kernel and user stack pointer
-word SR0, SR2;
-word LKS;
-boolean curuser, prevuser;
+int32_t R[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-long clkcounter;
+uint16_t	PS; // processor status
+uint16_t	PC; // address of current instruction
+uint16_t   KSP, USP; // kernel and user stack pointer
+uint16_t SR0, SR2;
+uint16_t LKS;
+uint8_t curuser, prevuser;
 
-page pages[16];
+uint32_t clkcounter;
 
-word bootrom[29] = {
+void setup(void)
+{
+   // Start the UART
+   Serial.begin(9600) ;
+   Serial.println("setting up..."); 
+	cpureset();
+    Serial.println("setup done.");
+}
+
+void loop() {
+  cpustep();
+}
+
+void printstate() {
+        uint32_t ia;
+        uint16_t inst;
+        
+        Serial.print("R0 "); Serial.print(R[0], OCT);
+	Serial.print(" R1 "); Serial.print(R[1], OCT);
+	Serial.print(" R2 "); Serial.print(R[2], OCT);
+	Serial.print(" R3 "); Serial.print(R[3], OCT);
+	Serial.print(" R4 "); Serial.print(R[4], OCT);
+	Serial.print(" R5 "); Serial.print(R[5], OCT);
+	Serial.print(" R6 "); Serial.print(R[6], OCT);
+	Serial.print(" R7 "); Serial.print(R[7], OCT);
+	Serial.print("\n [");
+	
+	if (prevuser) {
+		Serial.print("u");
+	} else {
+		Serial.print("k");
+	}
+	if (curuser) {
+		Serial.print("U");
+	} else {
+		Serial.print("K");
+	}
+	if (PS&FLAGN) {
+		Serial.print("N");
+	} else {
+		Serial.print(" ");
+	}
+	if (PS&FLAGZ) {
+		Serial.print("Z");
+	} else {
+		Serial.print(" ");
+	}
+	if (PS&FLAGV) {
+		Serial.print("V");
+	} else {
+		Serial.print(" ");
+	}
+	if (PS&FLAGC) {
+		Serial.print("C");
+	} else {
+		Serial.print(" ");
+	}
+	ia = decode(PC, false, curuser);
+	inst = physread16(ia);
+	Serial.print("]  instr ");
+        Serial.print(PC, OCT);
+        Serial.print(": ");
+        Serial.print(inst, OCT);
+        Serial.print("\n"); // + "   " + disasm(ia) + "\n")
+}
+
+void panic() {
+  printstate();
+  Serial.println("panic");
+  while (true) delay(1);
+}
+
+
+static uint16_t bootrom[29] = {
 	0042113,        /* "KD" */
 	0012706, 02000, /* MOV #boot_start, SP */
 	0012700, 0000000, /* MOV #unit, R0        ; unit number */
@@ -40,15 +112,16 @@ word bootrom[29] = {
 	0005007, /* CLR PC */
 };
 
-word memory[2048];
+uint16_t memory[MEMSIZE];
 
-page createpage(word par, word pdr) {
-	return page  { par, pdr, par & 07777, pdr >> 8 & 0x7F, (pdr & 2) == 2, (pdr & 6) == 6, (pdr & 8) == 8 };
+page createpage(uint16_t par, uint16_t pdr) {
+    page p = { par, pdr, par & 07777, pdr >> 8 & 0x7F, (pdr & 2) == 2, (pdr & 6) == 6, (pdr & 8) == 8 };
+    return p;
 }
 
-void setup() {
-	word i;
-	for (i = 0; i < sizeof(R); i++) {
+void cpureset(void) {
+	uint16_t i;
+	for (i = 0; i < 8; i++) {
 		R[i] = 0;
 	}
 	PS = 0;
@@ -59,13 +132,13 @@ void setup() {
 	prevuser = 0;
 	SR0 = 0;
 	LKS = 1 << 7;
-	for (i = 0; i < sizeof(memory); i++) {
+	for (i = 0; i < MEMSIZE; i++) {
 		memory[i] = 0;
 	}
-	for (i = 0; i < sizeof(bootrom); i++) {
+	for (i = 0; i < 29; i++) {
 		memory[01000+i] = bootrom[i];
 	}
-	for (i = 0; i < sizeof(pages); i++) {
+	for (i = 0; i < 16; i++) {
 		pages[i] = createpage(0, 0);
 	}
 	R[7] = 02002;
@@ -74,13 +147,9 @@ void setup() {
 	clkcounter = 0;
 }
 
-void loop() {
-	cpustep();
-}
-
 void cpustep() {
-	uint16_t max, maxp, msb;
-        int32_t ia, instr;
+	uint16_t max, maxp, msb, d, s, l, prev;
+        int32_t ia, sa, da, val, val1, val2, o, instr;
 	PC = (uint16_t)R[7];
 	ia = decode(PC, false, curuser);
 	R[7] += 2;
@@ -88,767 +157,771 @@ void cpustep() {
         printstate();
 
 	instr = (int32_t)physread16(ia);
-/**
-	d := instr & 077
-	s := (instr & 07700) >> 6
-	l := 2 - (instr >> 15)
-	o := instr & 0xFF
-	if l == 2 {
-		max = 0xFFFF
-		maxp = 0x7FFF
-		msb = 0x8000
+
+	d = instr & 077;
+	s = (instr & 07700) >> 6;
+	l = 2 - (instr >> 15);
+	o = instr & 0xFF;
+	if (l == 2) {
+		max = 0xFFFF;
+		maxp = 0x7FFF;
+		msb = 0x8000;
 	} else {
-		max = 0xFF
-		maxp = 0x7F
-		msb = 0x80
+		max = 0xFF;
+		maxp = 0x7F;
+		msb = 0x80;
 	}
-	switch instr & 0070000 {
+	switch (instr & 0070000) {
 	case 0010000: // MOV
 		// k.printstate()
-		sa := k.aget(s, l)
-		val := k.memread(sa, l)
-		da := k.aget(d, l)
-		k.PS &= 0xFFF1
-		if val&msb == msb {
-			k.PS |= FLAGN
+		sa = aget(s, l);
+		val = memread(sa, l);
+		da = aget(d, l);
+		PS &= 0xFFF1;
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if (val == 0) {
+			PS |= FLAGZ;
 		}
-		if da < 0 && l == 1 {
-			l = 2
-			if val&msb == msb {
-				val |= 0xFF00
+		if ((da < 0) && (l == 1)) {
+			l = 2;
+			if (val&msb) {
+				val |= 0xFF00;
 			}
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0020000: // CMP
-		sa := k.aget(s, l)
-		val1 := k.memread(sa, l)
-		da := k.aget(d, l)
-		val2 := k.memread(da, l)
-		val := (val1 - val2) & max
-		k.PS &= 0xFFF0
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, l);
+		val1 = memread(sa, l);
+		da = aget(d, l);
+		val2 = memread(da, l);
+		val = (val1 - val2) & max;
+		PS &= 0xFFF0;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&msb == msb {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if (val1^val2)&msb == msb && !((val2^val)&msb == msb) {
-			k.PS |= FLAGV
+		if (((val1^val2)&msb) && (!((val2^val)&msb))) {
+			PS |= FLAGV;
 		}
-		if val1 < val2 {
-			k.PS |= FLAGC
+		if (val1 < val2) {
+			PS |= FLAGC;
 		}
-		return
+		return;
 	case 0030000: // BIT
-		sa := k.aget(s, l)
-		val1 := k.memread(sa, l)
-		da := k.aget(d, l)
-		val2 := k.memread(da, l)
-		val := val1 & val2
-		k.PS &= 0xFFF1
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, l);
+		val1 = memread(sa, l);
+		da = aget(d, l);
+		val2 = memread(da, l);
+		val = val1 & val2;
+		PS &= 0xFFF1;
+		if (val == 0) {
+			PS |= FLAGZ;
 		}
-		if val&msb == msb {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		return
+		return;
 	case 0040000: // BIC
-		sa := k.aget(s, l)
-		val1 := k.memread(sa, l)
-		da := k.aget(d, l)
-		val2 := k.memread(da, l)
-		val := (max ^ val1) & val2
-		k.PS &= 0xFFF1
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, l);
+		val1 = memread(sa, l);
+		da = aget(d, l);
+		val2 = memread(da, l);
+		val = (max ^ val1) & val2;
+		PS &= 0xFFF1;
+		if (val == 0) {
+			PS |= FLAGZ;
 		}
-		if val&msb != 0 {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0050000: // BIS
-		sa := k.aget(s, l)
-		val1 := k.memread(sa, l)
-		da := k.aget(d, l)
-		val2 := k.memread(da, l)
-		val := val1 | val2
-		k.PS &= 0xFFF1
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, l);
+		val1 = memread(sa, l);
+		da = aget(d, l);
+		val2 = memread(da, l);
+		val = val1 | val2;
+		PS &= 0xFFF1;
+		if (val == 0) {
+			PS |= FLAGZ;
 		}
-		if val&msb == msb {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	}
-	switch instr & 0170000 {
+	switch (instr & 0170000) {
 	case 0060000: // ADD
-		sa := k.aget(s, 2)
-		val1 := k.memread(sa, 2)
-		da := k.aget(d, 2)
-		val2 := k.memread(da, 2)
-		val := (val1 + val2) & 0xFFFF
-		k.PS &= 0xFFF0
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, 2);
+		val1 = memread(sa, 2);
+		da = aget(d, 2);
+		val2 = memread(da, 2);
+		val = (val1 + val2) & 0xFFFF;
+		PS &= 0xFFF0;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x8000 == 0x8000 {
-			k.PS |= FLAGN
+		if (val&0x8000) {
+			PS |= FLAGN;
 		}
-		if !((val1^val2)&0x8000 == 0x8000) && ((val2^val)&0x8000 == 0x8000) {
-			k.PS |= FLAGV
+		if (!((val1^val2)&0x8000) && ((val2^val)&0x8000)) {
+			PS |= FLAGV;
 		}
-		if val1+val2 >= 0xFFFF {
-			k.PS |= FLAGC
+		if ((val1+val2) >= 0xFFFF) {
+			PS |= FLAGC;
 		}
-		k.memwrite(da, 2, val)
-		return
+		memwrite(da, 2, val);
+		return;
 	case 0160000: // SUB
-		sa := k.aget(s, 2)
-		val1 := k.memread(sa, 2)
-		da := k.aget(d, 2)
-		val2 := k.memread(da, 2)
-		val := (val2 - val1) & 0xFFFF
-		k.PS &= 0xFFF0
-		if val == 0 {
-			k.PS |= FLAGZ
+		sa = aget(s, 2);
+		val1 = memread(sa, 2);
+		da = aget(d, 2);
+		val2 = memread(da, 2);
+		val = (val2 - val1) & 0xFFFF;
+		PS &= 0xFFF0;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x8000 == 0x8000 {
-			k.PS |= FLAGN
+		if (val&0x8000) {
+			PS |= FLAGN;
 		}
-		if ((val1^val2)&0x8000 == 0x8000) && !((val2^val)&0x8000 == 0x8000) {
-			k.PS |= FLAGV
+		if (((val1^val2)&0x8000) && (!((val2^val)&0x8000))) {
+			PS |= FLAGV;
 		}
-		if val1 > val2 {
-			k.PS |= FLAGC
+		if (val1 > val2) {
+			PS |= FLAGC;
 		}
-		k.memwrite(da, 2, val)
-		return
+		memwrite(da, 2, val);
+		return;
 	}
-	switch instr & 0177000 {
+	switch (instr & 0177000) {
 	case 0004000: // JSR
-		val := k.aget(d, l)
-		if val < 0 {
-			break
+		val = aget(d, l);
+		if (val < 0) {
+                        panic();
+			break;
 		}
-		k.push(uint16(k.R[s&7]))
-		k.R[s&7] = k.R[7]
-		k.R[7] = val
-		return
+		push((uint16_t)R[s&7]);
+		R[s&7] = R[7];
+		R[7] = val;
+		return;
 	case 0070000: // MUL
-		val1 := k.R[s&7]
-		if val1&0x8000 == 0x8000 {
-			val1 = -((0xFFFF ^ val1) + 1)
+		val1 = R[s&7];
+		if (val1&0x8000) {
+			val1 = -((0xFFFF ^ val1) + 1);
 		}
-		da := k.aget(d, l)
-		val2 := int(k.memread(da, 2))
-		if val2&0x8000 == 0x8000 {
-			val2 = -((0xFFFF ^ val2) + 1)
+		da = aget(d, l);
+		val2 = (int32_t)memread(da, 2);
+		if (val2&0x8000) {
+			val2 = -((0xFFFF ^ val2) + 1);
 		}
-		val := val1 * val2
-		k.R[s&7] = (val & 0xFFFF0000) >> 16
-		k.R[(s&7)|1] = val & 0xFFFF
-		k.PS &= 0xFFF0
-		if val&0x80000000 == 0x80000000 {
-			k.PS |= FLAGN
+		val = val1 * val2;
+		R[s&7] = (val & 0xFFFF0000) >> 16;
+		R[(s&7)|1] = val & 0xFFFF;
+		PS &= 0xFFF0;
+		if (val&0x80000000) {
+			PS |= FLAGN;
 		}
-		if val&0xFFFFFFFF == 0 {
-			k.PS |= FLAGZ
+		if ((val&0xFFFFFFFF) == 0) {
+			PS |= FLAGZ;
 		}
-		if val < (1<<15) || val >= ((1<<15)-1) {
-			k.PS |= FLAGC
+		if ((val < (1<<15)) || (val >= ((1<<15)-1))) {
+			PS |= FLAGC;
 		}
-		return
+		return;
 	case 0071000: // DIV
-		val1 := (k.R[s&7] << 16) | k.R[(s&7)|1]
-		da := k.aget(d, l)
-		val2 := int(k.memread(da, 2))
-		k.PS &= 0xFFF0
-		if val2 == 0 {
-			k.PS |= FLAGC
-			return
+		val1 = (R[s&7] << 16) | (R[(s&7)|1]);
+		da = aget(d, l);
+		val2 = (int32_t)memread(da, 2);
+		PS &= 0xFFF0;
+		if (val2 == 0) {
+			PS |= FLAGC;
+			return;
 		}
-		if val1/val2 >= 0x10000 {
-			k.PS |= FLAGV
-			return
+		if ((val1/val2) >= 0x10000) {
+			PS |= FLAGV;
+			return;
 		}
-		k.R[s&7] = (val1 / val2) & 0xFFFF
-		k.R[(s&7)|1] = (val1 % val2) & 0xFFFF
-		if k.R[s&7] == 0 {
-			k.PS |= FLAGZ
+		R[s&7] = (val1 / val2) & 0xFFFF;
+		R[(s&7)|1] = (val1 % val2) & 0xFFFF;
+		if (R[s&7] == 0) {
+			PS |= FLAGZ;
 		}
-		if k.R[s&7]&0100000 == 0100000 {
-			k.PS |= FLAGN
+		if (R[s&7]&0100000) {
+			PS |= FLAGN;
 		}
-		if val1 == 0 {
-			k.PS |= FLAGV
+		if (val1 == 0) {
+			PS |= FLAGV;
 		}
-		return
+		return;
 	case 0072000: // ASH
-		val1 := k.R[s&7]
-		da := k.aget(d, 2)
-		val2 := uint(k.memread(da, 2) & 077)
-		k.PS &= 0xFFF0
-		var val int
-		if val2&040 != 0 {
-			val2 = (077 ^ val2) + 1
-			if val1&0100000 == 0100000 {
-				val = 0xFFFF ^ (0xFFFF >> val2)
-				val |= val1 >> val2
+		val1 = R[s&7];
+		da = aget(d, 2);
+		val2 = (uint32_t)memread(da, 2) & 077;
+		PS &= 0xFFF0;
+		if (val2&040) {
+			val2 = (077 ^ val2) + 1;
+			if (val1&0100000) {
+				val = 0xFFFF ^ (0xFFFF >> val2);
+				val |= val1 >> val2;
 			} else {
-				val = val1 >> val2
+				val = val1 >> val2;
 			}
-			shift := 1 << (val2 - 1)
-			if val1&shift == shift {
-				k.PS |= FLAGC
+                        int32_t shift;
+			shift = 1 << (val2 - 1);
+			if (val1&shift) {
+				PS |= FLAGC;
 			}
 		} else {
-			val = (val1 << val2) & 0xFFFF
-			shift := 1 << (16 - val2)
-			if val1&shift == shift {
-				k.PS |= FLAGC
+			val = (val1 << val2) & 0xFFFF;
+                        int32_t shift;
+			shift = 1 << (16 - val2);
+			if (val1&shift) {
+				PS |= FLAGC;
 			}
 		}
-		k.R[s&7] = val
-		if val == 0 {
-			k.PS |= FLAGZ
+		R[s&7] = val;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0100000 == 0100000 {
-			k.PS |= FLAGN
+		if (val&0100000) {
+			PS |= FLAGN;
 		}
-		if xor(val&0100000, val1&0100000) != 0 {
-			k.PS |= FLAGV
+		if (xor32(val&0100000, val1&0100000)) {
+			PS |= FLAGV;
 		}
-		return
+		return; 
 	case 0073000: // ASHC
-		val1 := k.R[s&7]<<16 | k.R[(s&7)|1]
-		da := k.aget(d, 2)
-		val2 := uint(k.memread(da, 2) & 077)
-		k.PS &= 0xFFF0
-		var val int
-		if val2&040 != 0 {
-			val2 = (077 ^ val2) + 1
-			if val1&0x80000000 == 0x8000000 {
-				val = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2)
-				val |= val1 >> val2
+		val1 = R[s&7]<<16 | R[(s&7)|1];
+		da = aget(d, 2);
+		val2 = (uint32_t)memread(da, 2) & 077;
+		PS &= 0xFFF0;
+		
+		if (val2&040) {
+			val2 = (077 ^ val2) + 1;
+			if (val1&0x80000000) {
+				val = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2);
+				val |= val1 >> val2;
 			} else {
-				val = val1 >> val2
+				val = val1 >> val2;
 			}
-			if val1&(1<<(val2-1)) != 0 {
-				k.PS |= FLAGC
+			if (val1&(1<<(val2-1))) {
+				PS |= FLAGC;
 			}
 		} else {
-			val = (val1 << val2) & 0xFFFFFFFF
-			if val1&(1<<(32-val2)) != 0 {
-				k.PS |= FLAGC
+			val = (val1 << val2) & 0xFFFFFFFF;
+			if (val1&(1<<(32-val2))) {
+				PS |= FLAGC;
 			}
 		}
-		k.R[s&7] = (val >> 16) & 0xFFFF
-		k.R[(s&7)|1] = val & 0xFFFF
-		if val == 0 {
-			k.PS |= FLAGZ
+		R[s&7] = (val >> 16) & 0xFFFF;
+		R[(s&7)|1] = val & 0xFFFF;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x80000000 != 0 {
-			k.PS |= FLAGN
+		if (val&0x80000000) {
+			PS |= FLAGN;
 		}
-		if xor(val&0x80000000, val1&0x80000000) != 0 {
-			k.PS |= FLAGV
+		if (xor32(val&0x80000000, val1&0x80000000)) {
+			PS |= FLAGV;
 		}
-		return
+		return;
 	case 0074000: // XOR
-		val1 := uint16(k.R[s&7])
-		da := k.aget(d, 2)
-		val2 := k.memread(da, 2)
-		val := val1 ^ val2
-		k.PS &= 0xFFF1
-		if val == 0 {
-			k.PS |= FLAGZ
+		val1 = R[s&7];
+		da = aget(d, 2);
+		val2 = memread(da, 2);
+		val = val1 ^ val2;
+		PS &= 0xFFF1;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x8000 == 0x8000 {
-			k.PS |= FLAGZ
+		if (val&0x8000) {
+			PS |= FLAGZ;
 		}
-		k.memwrite(da, 2, val)
-		return
+		memwrite(da, 2, val);
+		return;
 	case 0077000: // SOB
-		k.R[s&7]--
-		if k.R[s&7] != 0 {
-			o &= 077
-			o <<= 1
-			k.R[7] -= o
+		R[s&7]--;
+		if (R[s&7]) {
+			o &= 077;
+			o <<= 1;
+			R[7] -= o;
 		}
-		return
+		return;
 	}
-	switch instr & 0077700 {
+	switch (instr & 0077700) {
 	case 0005000: // CLR
-		k.PS &= 0xFFF0
-		k.PS |= FLAGZ
-		da := k.aget(d, l)
-		k.memwrite(da, l, 0)
-		return
+		PS &= 0xFFF0;
+		PS |= FLAGZ;
+		da = aget(d, l);
+		memwrite(da, l, 0);
+		return;
 	case 0005100: // COM
-		da := k.aget(d, l)
-		val := k.memread(da, l) ^ max
-		k.PS &= 0xFFF0
-		k.PS |= FLAGC
-		if val&msb == msb {
-			k.PS |= FLAGN
+		da = aget(d, l);
+		val = memread(da, l) ^ max;
+		PS &= 0xFFF0;
+		PS |= FLAGC;
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0005200: // INC
-		da := k.aget(d, l)
-		val := (k.memread(da, l) + 1) & max
-		k.PS &= 0xFFF1
-		if val&msb == msb {
-			k.PS |= FLAGN | FLAGV
+		da = aget(d, l);
+		val = (memread(da, l) + 1) & max;
+		PS &= 0xFFF1;
+		if (val&msb) {
+			PS |= FLAGN | FLAGV;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0005300: // DEC
-		da := k.aget(d, l)
-		val := (k.memread(da, l) - 1) & max
-		k.PS &= 0xFFF1
-		if val&msb == msb {
-			k.PS |= FLAGN
+		da = aget(d, l);
+		val = (memread(da, l) - 1) & max;
+		PS &= 0xFFF1;
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if val == maxp {
-			k.PS |= FLAGV
+		if (val == maxp) {
+			PS |= FLAGV;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0005400: // NEG
-		da := k.aget(d, l)
-		val := (-k.memread(da, l)) & max
-		k.PS &= 0xFFF0
-		if val&msb == msb {
-			k.PS |= FLAGN
+		da = aget(d, l);
+		val = (-memread(da, l)) & max;
+		PS &= 0xFFF0;
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if(val == 0){
+			PS |= FLAGZ;
 		} else {
-			k.PS |= FLAGC
+			PS |= FLAGC;
 		}
-		if val == 0x8000 {
-			k.PS |= FLAGV
+		if (val == 0x8000) {
+			PS |= FLAGV;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0005500: // ADC
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		if k.PS&FLAGC == FLAGC {
-			k.PS &= 0xFFF0
-			if (val+1)&msb == msb {
-				k.PS |= FLAGN
+		da = aget(d, l);
+		val = memread(da, l);
+		if (PS&FLAGC) {
+			PS &= 0xFFF0;
+			if ((val+1)&msb) {
+				PS |= FLAGN;
 			}
-			if val == max {
-				k.PS |= FLAGZ
+			if (val == max) {
+				PS |= FLAGZ;
 			}
-			if val == 0077777 {
-				k.PS |= FLAGV
+			if (val == 0077777) {
+				PS |= FLAGV;
 			}
-			if val == 0177777 {
-				k.PS |= FLAGC
+			if (val == 0177777) {
+				PS |= FLAGC;
 			}
-			k.memwrite(da, l, (val+1)&max)
+			memwrite(da, l, (val+1)&max);
 		} else {
-			k.PS &= 0xFFF0
-			if val&msb == msb {
-				k.PS |= FLAGN
+			PS &= 0xFFF0;
+			if (val&msb) {
+				PS |= FLAGN;
 			}
-			if val == 0 {
-				k.PS |= FLAGZ
+			if(val == 0){
+				PS |= FLAGZ;
 			}
 		}
-		return
+		return;
 	case 0005600: // SBC
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		if k.PS&FLAGC == FLAGC {
-			k.PS &= 0xFFF0
-			if (val-1)&msb == msb {
-				k.PS |= FLAGN
+		da = aget(d, l);
+		val = memread(da, l);
+		if (PS&FLAGC) {
+			PS &= 0xFFF0;
+			if ((val-1)&msb) {
+				PS |= FLAGN;
 			}
-			if val == 1 {
-				k.PS |= FLAGZ
+			if (val == 1) {
+				PS |= FLAGZ;
 			}
-			if val != 0 {
-				k.PS |= FLAGC
+			if (val) {
+				PS |= FLAGC;
 			}
-			if val == 0100000 {
-				k.PS |= FLAGV
+			if (val == 0100000) {
+				PS |= FLAGV;
 			}
-			k.memwrite(da, l, (val-1)&max)
+			memwrite(da, l, (val-1)&max);
 		} else {
-			k.PS &= 0xFFF0
-			if val&msb == msb {
-				k.PS |= FLAGN
+			PS &= 0xFFF0;
+			if (val&msb) {
+				PS |= FLAGN;
 			}
-			if val == 0 {
-				k.PS |= FLAGZ
+			if(val == 0){
+				PS |= FLAGZ;
 			}
-			if val == 0100000 {
-				k.PS |= FLAGV
+			if (val == 0100000) {
+				PS |= FLAGV;
 			}
-			k.PS |= FLAGC
+			PS |= FLAGC;
 		}
-		return
+		return;
 	case 0005700: // TST
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		k.PS &= 0xFFF0
-		if val&msb == msb {
-			k.PS |= FLAGN
+		da = aget(d, l);
+		val = memread(da, l);
+		PS &= 0xFFF0;
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if val == 0 {
-			k.PS |= FLAGZ
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		return
+		return;
 	case 0006000: // ROR
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		if k.PS&FLAGC == FLAGC {
-			val |= max + 1
+		da = aget(d, l);
+		val = memread(da, l);
+		if (PS&FLAGC) {
+			val |= max + 1;
 		}
-		k.PS &= 0xFFF0
-		if val&1 == 1 {
-			k.PS |= FLAGC
+		PS &= 0xFFF0;
+		if (val&1) {
+			PS |= FLAGC;
 		}
-		if val&(max+1) != 0 {
-			k.PS |= FLAGN
+		if (val&(max+1)) {
+			PS |= FLAGN;
 		}
-		if !(val&max != 0) {
-			k.PS |= FLAGZ
+		if (!(val&max)) {
+			PS |= FLAGZ;
 		}
-		if xor16(val&1, val&(max+1)) != 0 {
-			k.PS |= FLAGV
+		if (xor16(val&1, val&(max+1))) {
+			PS |= FLAGV;
 		}
-		val >>= 1
-		k.memwrite(da, l, val)
-		return
+		val >>= 1;
+		memwrite(da, l, val);
+		return;
 	case 0006100: // ROL
-		da := k.aget(d, l)
-		val := k.memread(da, l) << 1
-		if k.PS&FLAGC == FLAGC {
-			val |= 1
+		da = aget(d, l);
+		val = memread(da, l) << 1;
+		if (PS&FLAGC) {
+			val |= 1;
 		}
-		k.PS &= 0xFFF0
-		if val&(max+1) != 0 {
-			k.PS |= FLAGC
+		PS &= 0xFFF0;
+		if (val&(max+1)) {
+			PS |= FLAGC;
 		}
-		if val&msb == msb {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN;
 		}
-		if !(val&max != 0) {
-			k.PS |= FLAGZ
+		if (!(val&max)) {
+			PS |= FLAGZ;
 		}
-		if (val^(val>>1))&msb != 0 {
-			k.PS |= FLAGV
+		if ((val^(val>>1))&msb) {
+			PS |= FLAGV;
 		}
-		val &= max
-		k.memwrite(da, l, val)
-		return
+		val &= max;
+		memwrite(da, l, val);
+		return;
 	case 0006200: // ASR
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		k.PS &= 0xFFF0
-		if val&1 == 1 {
-			k.PS |= FLAGC
+		da = aget(d, l);
+		val = memread(da, l);
+		PS &= 0xFFF0;
+		if (val&1) {
+			PS |= FLAGC;
 		}
-		if val&msb == msb {
-			k.PS |= FLAGN
+		if (val&msb) {
+			PS |= FLAGN
+;		}
+		if (xor16(val&msb, val&1)) {
+			PS |= FLAGV;
 		}
-		if xor16(val&msb, val&1) != 0 {
-			k.PS |= FLAGV
+		val = (val & msb) | (val >> 1);
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		val = (val & msb) | (val >> 1)
-		if val == 0 {
-			k.PS |= FLAGZ
-		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0006300: // ASL
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		k.PS &= 0xFFF0
-		if val&msb == msb {
-			k.PS |= FLAGC
+		da = aget(d, l);
+		val = memread(da, l);
+		PS &= 0xFFF0;
+		if (val&msb) {
+			PS |= FLAGC;
 		}
-		if val&(msb>>1) != 0 {
-			k.PS |= FLAGN
+		if (val&(msb>>1)) {
+			PS |= FLAGN;
 		}
-		if (val^(val<<1))&msb != 0 {
-			k.PS |= FLAGV
+		if ((val^(val<<1))&msb) {
+			PS |= FLAGV;
 		}
-		val = (val << 1) & max
-		if val == 0 {
-			k.PS |= FLAGZ
+		val = (val << 1) & max;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0006700: // SXT
-		da := k.aget(d, l)
-		if k.PS&FLAGN == FLAGN {
-			k.memwrite(da, l, max)
+		da = aget(d, l);
+		if (PS&FLAGN) {
+			memwrite(da, l, max);
 		} else {
-			k.PS |= FLAGZ
-			k.memwrite(da, l, 0)
+			PS |= FLAGZ;
+			memwrite(da, l, 0);
 		}
-		return
+		return;
 	}
-	switch instr & 0177700 {
+	switch (instr & 0177700) {
 	case 0000100: // JMP
-		val := k.aget(d, 2)
-		if val < 0 {
-			panic("whoa!")
-			break
+		val = aget(d, 2);
+		if (val < 0) {
+			panic(); //panic("whoa!")
+			break;
 		}
-		k.R[7] = val
-		return
+		R[7] = val;
+		return;
 	case 0000300: // SWAB
-		da := k.aget(d, l)
-		val := k.memread(da, l)
-		val = ((val >> 8) | (val << 8)) & 0xFFFF
-		k.PS &= 0xFFF0
-		if (val & 0xFF) == 0 {
-			k.PS |= FLAGZ
+		da = aget(d, l);
+		val = memread(da, l);
+		val = ((val >> 8) | (val << 8)) & 0xFFFF;
+		PS &= 0xFFF0;
+		if (val & 0xFF) {
+			PS |= FLAGZ;
 		}
-		if val&0x80 == 0x80 {
-			k.PS |= FLAGN
+		if (val&0x80) {
+			PS |= FLAGN;
 		}
-		k.memwrite(da, l, val)
-		return
+		memwrite(da, l, val);
+		return;
 	case 0006400: // MARK
-		k.R[6] = k.R[7] + (instr&077)<<1
-		k.R[7] = k.R[5]
-		k.R[5] = int(k.pop())
-		break
+		R[6] = R[7] + ((instr&077)<<1);
+		R[7] = R[5];
+		R[5] = (int32_t)pop();
+		break;
 	case 0006500: // MFPI
-		var val uint16
-		da := k.aget(d, 2)
-		switch {
-		case da == -7:
+		da = aget(d, 2);
+		if (da == -7) {
 			// val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
-			if curuser == prevuser {
-				val = uint16(k.R[6])
+			if (curuser == prevuser) {
+				val = R[6];
 			} else {
-				if prevuser {
-					val = k.USP
+				if (prevuser) {
+					val = USP;
 				} else {
-					val = k.KSP
+					val = KSP;
 				}
 			}
-		case da < 0:
-			panic("invalid MFPI instruction")
-		default:
-			val = k.unibus.physread16(k.decode(uint16(da), false, prevuser))
+} else if (da < 0) {
+    panic();		
+  	//panic("invalid MFPI instruction")
+} else {
+			val = physread16(decode((uint16_t)da, false, prevuser));
 		}
-		k.push(val)
-		k.PS &= 0xFFF0
-		k.PS |= FLAGC
-		if val == 0 {
-			k.PS |= FLAGZ
+		push(val);
+		PS &= 0xFFF0;
+		PS |= FLAGC;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x8000 == 0x800 {
-			k.PS |= FLAGN
+		if (val&0x8000) {
+			PS |= FLAGN;
 		}
-		return
+		return;
 	case 0006600: // MTPI
-		da := k.aget(d, 2)
-		val := uint16(k.pop())
-		switch {
-		case da == -7:
-			if curuser == prevuser {
-				k.R[6] = int(val)
+		da = aget(d, 2);
+		val = pop();
+if (da == -7) {
+			if (curuser == prevuser) {
+				R[6] = val;
 			} else {
-				if prevuser {
-					k.USP = val
+				if (prevuser) {
+					USP = val;
 				} else {
-					k.KSP = val
+					KSP = val;
 				}
 			}
-		case da < 0:
-			panic("invalid MTPI instrution")
-		default:
-			sa := k.decode(uint16(da), true, prevuser)
-			k.unibus.physwrite16(sa, val)
+} else if (da < 0) {
+		panic();//	panic("invalid MTPI instrution")
+	} else {
+			sa = decode((uint16_t)da, true, prevuser);
+			physwrite16(sa, val);
 		}
-		k.PS &= 0xFFF0
-		k.PS |= FLAGC
-		if val == 0 {
-			k.PS |= FLAGZ
+		PS &= 0xFFF0;
+		PS |= FLAGC;
+		if(val == 0){
+			PS |= FLAGZ;
 		}
-		if val&0x8000 == 0x8000 {
-			k.PS |= FLAGN
+		if (val&0x8000) {
+			PS |= FLAGN;
 		}
-		return
+		return;
 	}
-	if (instr & 0177770) == 0000200 { // RTS
-		k.R[7] = k.R[d&7]
-		k.R[d&7] = int(k.pop())
-		return
+	if ((instr & 0177770) == 0000200) { // RTS
+		R[7] = R[d&7];
+		R[d&7] = pop();
+		return;
 	}
-	switch instr & 0177400 {
+	switch (instr & 0177400) {
 	case 0000400:
-		k.branch(o)
-		return
+		branch(o);
+		return;
 	case 0001000:
-		if !(k.PS&FLAGZ == FLAGZ) {
-			k.branch(o)
+		if (!(PS&FLAGZ)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0001400:
-		if k.PS&FLAGZ == FLAGZ {
-			k.branch(o)
+		if (PS&FLAGZ) {
+			branch(o);
 		}
-		return
+		return;
 	case 0002000:
-		if !(xor16(k.PS&FLAGN, k.PS&FLAGV) != 0) {
-			k.branch(o)
+		if (!(xor16(PS&FLAGN, PS&FLAGV))) {
+			branch(o);
 		}
-		return
+		return;
 	case 0002400:
-		if xor16(k.PS&FLAGN, k.PS&FLAGV) != 0 {
-			k.branch(o)
+		if (xor16(PS&FLAGN, PS&FLAGV)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0003000:
-		if !(xor16(k.PS&FLAGN, k.PS&FLAGV) != 0) && !(k.PS&FLAGZ == FLAGZ) {
-			k.branch(o)
+		if ((!(xor16(PS&FLAGN, PS&FLAGV))) && (!(PS&FLAGZ))) {
+			branch(o);
 		}
-		return
+		return;
 	case 0003400:
-		if xor16(k.PS&FLAGN, k.PS&FLAGV) != 0 || (k.PS&FLAGZ == FLAGZ) {
-			k.branch(o)
+		if ((xor16(PS&FLAGN, PS&FLAGV)) || (PS&FLAGZ)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0100000:
-		if k.PS&FLAGN == 0 {
-			k.branch(o)
+		if ((PS&FLAGN) == 0) {
+			branch(o);
 		}
-		return
+		return;
 	case 0100400:
-		if k.PS&FLAGN == FLAGN {
-			k.branch(o)
+		if (PS&FLAGN) {
+			branch(o);
 		}
-		return
+		return;
 	case 0101000:
-		if !(k.PS&FLAGC == FLAGC) && !(k.PS&FLAGZ == FLAGZ) {
-			k.branch(o)
+		if ((!(PS&FLAGC)) && (!(PS&FLAGZ))) {
+			branch(o);
 		}
-		return
+		return;
 	case 0101400:
-		if (k.PS&FLAGC == FLAGC) || (k.PS&FLAGZ == FLAGZ) {
-			k.branch(o)
+		if ((PS&FLAGC) || (PS&FLAGZ)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0102000:
-		if !(k.PS&FLAGV == FLAGV) {
-			k.branch(o)
+		if (!(PS&FLAGV)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0102400:
-		if k.PS&FLAGV == FLAGV {
-			k.branch(o)
+		if (PS&FLAGV) {
+			branch(o);
 		}
-		return
+		return;
 	case 0103000:
-		if !(k.PS&FLAGC == FLAGC) {
-			k.branch(o)
+		if (!(PS&FLAGC)) {
+			branch(o);
 		}
-		return
+		return;
 	case 0103400:
-		if k.PS&FLAGC == FLAGC {
-			k.branch(o)
+		if (PS&FLAGC) {
+			branch(o);
 		}
-		return
+		return;
 	}
-	if (instr&0177000) == 0104000 || instr == 3 || instr == 4 { // EMT TRAP IOT BPT
-		var vec int
-		switch {
-		case (instr & 0177400) == 0104000:
-			vec = 030
-		case (instr & 0177400) == 0104400:
-			vec = 034
-		case instr == 3:
-			vec = 014
-		default:
-			vec = 020
+	if (((instr&0177000) == 0104000) || (instr == 3) || (instr == 4)) { // EMT TRAP IOT BPT
+		uint16_t vec;
+		
+if ((instr & 0177400) == 0104000) {
+			vec = 030;
+} else if ((instr & 0177400) == 0104400) {
+			vec = 034;
+} else if (instr == 3) {
+			vec = 014;
+} else {
+			vec = 020;
 		}
-		prev := k.PS
-		k.switchmode(false)
-		k.push(prev)
-		k.push(uint16(k.R[7]))
-		k.R[7] = int(memory[vec>>1])
-		k.PS = memory[(vec>>1)+1]
-		if prevuser {
-			k.PS |= (1 << 13) | (1 << 12)
+		prev = PS;
+		switchmode(false);
+		push(prev);
+		push(R[7]);
+		R[7] = memory[vec>>1];
+		PS = memory[(vec>>1)+1];
+		if (prevuser) {
+			PS |= (1 << 13) | (1 << 12);
 		}
-		return
+		return;
 	}
-	if (instr & 0177740) == 0240 { // CL?, SE?
-		if instr&020 == 020 {
-			k.PS |= uint16(instr) & 017
+	if ((instr & 0177740) == 0240) { // CL?, SE?
+		if (instr&020) {
+			PS |= instr & 017;
 		} else {
-			k.PS &= ^(uint16(instr) & 017)
+			PS &= ~instr & 017;
 		}
-		return
+		return;
 	}
-	switch instr {
+	switch (instr) {
 	case 0000000: // HALT
-		if curuser {
-			break
+		if (curuser) {
+			break;
 		}
-		writedebug("HALT\n")
-		k.printstate()
-		panic("HALT")
-		return
+		//writedebug("HALT\n")
+		//printstate()
+	//	panic("HALT")
+		return;
 	case 0000001: // WAIT
-		if curuser {
-			break
+		if (curuser) {
+			break;
 		}
 		//println("WAIT")
-		waiting = true
-		return
+		//waiting = true
+		return;
 	case 0000002: // RTI
-		fallthrough
+		
 	case 0000006: // RTT
-		k.R[7] = int(k.pop())
-		val := k.pop()
-		if curuser {
-			val &= 047
-			val |= k.PS & 0177730
+		R[7] = pop();
+		val = pop();
+		if (curuser) {
+			val &= 047;
+			val |= PS & 0177730;
 		}
-		k.unibus.physwrite16(0777776, val)
-		return
+		physwrite16(0777776, val);
+		return;
 	case 0000005: // RESET
-		if curuser {
-			return
+		if (curuser) {
+			return;
                 }
-*/
+                //clearterminal()
+                //rkreset()
+                return;
+        case 0170011: // SETD ; not needed by UNIX, but used; therefore ignored
+                return;
+        }
+        //fmt.Println(ia, disasm(ia))
+        //panic(trap{INTINVAL, "invalid instruction"})
+        panic();
 }
 
-void printstate() {
-  // TODO
-}
-
-uint32_t decode(uint16_t a, bool w, bool user) {
+uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
 	page p;
         uint32_t aa, block, disp;
 	if (!(SR0&1)) {
@@ -871,7 +944,7 @@ uint32_t decode(uint16_t a, bool w, bool user) {
 			SR0 |= (1 << 5) | (1 << 6);
 		}
 		SR2 = PC;
-		abort(); //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
+		panic(); //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
 	}
 	if (!p.read) {
 		SR0 = (1 << 15) | 1;
@@ -880,7 +953,7 @@ uint32_t decode(uint16_t a, bool w, bool user) {
 			SR0 |= (1 << 5) | (1 << 6);
 		}
 		SR2 = PC;
-		abort(); //panic(trap{INTFAULT, "read from no-access page " + ostr(a, 6)})
+		panic(); //panic(trap{INTFAULT, "read from no-access page " + ostr(a, 6)})
 	}
 	block = a >> 6 & 0177;
 	disp = a & 077;
@@ -892,7 +965,7 @@ uint32_t decode(uint16_t a, bool w, bool user) {
 			SR0 |= (1 << 5) | (1 << 6);
 		}
 		SR2 = PC;
-		abort(); // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
+		panic(); // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
 	}
 	if (w) {
 		p.pdr |= 1 << 6;
@@ -937,7 +1010,7 @@ uint16_t pop() {
 
 uint16_t physread16(uint32_t a) {
   if (a & 1) {
-	abort(); // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
+	panic(); // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
   } else if (a < 0760000 ) {
     return memory[a>>1];
   } else if (a == 0777546) {
@@ -951,16 +1024,16 @@ uint16_t physread16(uint32_t a) {
   } else if (a == 0777776) {
     return PS;
   } else if ((a&0777770) == 0777560) {
-    abort();
+    panic();
     //return uint16(u.cons.consread16(a))
   } else if ((a&0777760) == 0777400) {
     // return uint16(u.rk.rkread16(a))
-    abort();
+    panic();
   } else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
     // return mmuread16(a)
-    abort();
+    panic();
   } 
-  abort(); 
+  panic(); 
    //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
 }
 
@@ -993,7 +1066,7 @@ void physwrite8(uint32_t a, uint16_t v) {
 
 void physwrite16(uint32_t a, uint16_t v) {
 	if (a%1) {
-		abort(); //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
+		panic(); //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
 	}
 	if (a < 0760000) {
 		memory[a>>1] = v;
@@ -1006,7 +1079,7 @@ void physwrite16(uint32_t a, uint16_t v) {
 			switchmode(true);
 			break;
 		default:
-			abort(); //panic("invalid mode")
+			panic(); //panic("invalid mode")
 		}
 		switch ((v >> 12) & 3) {
 		case 0:
@@ -1016,7 +1089,7 @@ void physwrite16(uint32_t a, uint16_t v) {
 			prevuser = true;
 			break;
 		default:
-			abort(); //panic("invalid mode")
+			panic(); //panic("invalid mode")
 		}
 		PS = v;
 	} else if (a == 0777546) {
@@ -1024,17 +1097,17 @@ void physwrite16(uint32_t a, uint16_t v) {
 	} else if (a == 0777572) {
 		SR0 = v;
 	} else if ((a & 0777770) == 0777560) {
-		abort(); // conswrite16(a, int(v))
+		panic(); // conswrite16(a, int(v))
 	} else if ((a & 0777700) == 0777400) {
-		abort(); //u.rk.rkwrite16(a, int(v))
+		panic(); //u.rk.rkwrite16(a, int(v))
 	} else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
-		abort(); //mmuwrite16(a, v)
+		panic(); //mmuwrite16(a, v)
 	} else {
-		abort(); //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})
+		panic(); //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})
 	}
 }
 
-void switchmode(bool newm) {
+void switchmode(uint8_t newm) {
 	prevuser = curuser;
 	curuser = newm;
 	if (prevuser) {
@@ -1056,110 +1129,102 @@ void switchmode(bool newm) {
 	}
 }
 
+int32_t aget(int32_t v, int32_t l) {
+	if (((v&7) >= 6) || (v&010)) {
+		l = 2;
+	}
+	if ((v & 070) == 000) {
+		return -(v + 1);
+	}
+        int32_t addr = 0;
+	switch (v & 060) {
+	case 000:
+		v &= 7;
+		addr = R[v&7];
+                break;
+	case 020:
+		addr = R[v&7];
+		R[v&7] += l;
+                break;
+	case 040:
+		R[v&7] -= l;
+		addr = R[v&7];
+                break;
+	case 060:
+		addr = fetch16();
+		addr += R[v&7];
+                break;
+	}
+	addr &= 0xFFFF;
+	if (v&010) {
+		addr = read16(addr);
+	}
+	return addr;
+}
+
+uint16_t memread(int32_t a, int32_t l) {
+	if (a < 0) {
+		a = -(a + 1);
+		if (l == 2) {
+			return (uint16_t)R[a&7];
+		} else {
+			return (uint16_t)R[a&7] & 0xFF;
+		}
+	}
+	if (l == 2) {
+		return read16((uint16_t)a);
+	}
+	return read8((uint16_t)a);
+}
+
+void memwrite(int32_t a, int32_t l, uint16_t v) {
+	if (a < 0) {
+		a = -(a + 1);
+		if (l == 2) {
+			R[a&7] = (int32_t)v;
+		} else {
+			R[a&7] &= 0xFF00;
+			R[a&7] |= (int32_t)v;
+		}
+	} else if (l == 2) {
+		write16((uint16_t)a, v);
+	} else {
+		write8((uint16_t)a, v);
+	}
+}
+
+void branch(int32_t o) {
+	//printstate()
+	if (o&0x80) {
+		o = -(((~o) + 1) & 0xFF);
+	}
+	o <<= 1;
+	R[7] += o;
+}
+
+int32_t xor32(int32_t x, int32_t y) {
+  int32_t a, b, z;
+  a = x & y;
+  b = ~x & ~y;
+  z = ~a & ~b;
+  return z;
+}
+
+uint16_t xor16(uint16_t x, uint16_t y) {
+  uint16_t a,b, z;
+  a = x & y;
+  b = ~x & ~y;
+  z = ~a & ~b;
+  return z;
+}
+
+
+
 /**
-package pdp11
-
-import "fmt"
-
-const (
-	FLAGN = 8
-	FLAGZ = 4
-	FLAGV = 2
-	FLAGC = 1
-)
-
-const pr = false // debug
-
-var (
-	curuser, prevuser bool
-	clkcounter        int
-	waiting           = false
-	interrupts        []intr
-)
-
-type intr struct{ vec, pri int }
-
-// traps
-const (
-	INTBUS    = 0004
-	INTINVAL  = 0010
-	INTDEBUG  = 0014
-	INTIOT    = 0020
-	INTTTYIN  = 0060
-	INTTTYOUT = 0064
-	INTFAULT  = 0250
-	INTCLOCK  = 0100
-	INTRK     = 0220
-)
-
-}
-
-func xor(x, y int) int {
-	a := x & y
-	b := ^x & ^y
-	z := ^a & ^b
-	return z
-}
-
-func xor16(x, y uint16) uint16 {
-	a := x & y
-	b := ^x & ^y
-	z := ^a & ^b
-	return z
-}
-
-
-	Input  chan uint8
-	unibus *Unibus
-}
-
-
-
-
-
-
-func ostr(z interface{}, n int) string {
-	return fmt.Sprintf("%0"+fmt.Sprintf("%d", n)+"o", z)
-}
 
 var writedebug = fmt.Print
 
-func (k *KB11) printstate() {
-	writedebug(fmt.Sprintf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\n[", k.R[0], k.R[1], k.R[2], k.R[3], k.R[4], k.R[5], k.R[6], k.R[7]))
-	if prevuser {
-		writedebug("u")
-	} else {
-		writedebug("k")
-	}
-	if curuser {
-		writedebug("U")
-	} else {
-		writedebug("K")
-	}
-	if k.PS&FLAGN != 0 {
-		writedebug("N")
-	} else {
-		writedebug(" ")
-	}
-	if k.PS&FLAGZ != 0 {
-		writedebug("Z")
-	} else {
-		writedebug(" ")
-	}
-	if k.PS&FLAGV != 0 {
-		writedebug("V")
-	} else {
-		writedebug(" ")
-	}
-	if k.PS&FLAGC != 0 {
-		writedebug("C")
-	} else {
-		writedebug(" ")
-	}
-	ia := k.decode(k.PC, false, curuser)
-	instr := k.unibus.physread16(ia)
-	writedebug("]  instr " + ostr(k.PC, 6) + ": " + ostr(instr, 6) + "   " + disasm(ia) + "\n")
-}
+
 
 type trap struct {
 	num int
@@ -1191,8 +1256,8 @@ func interrupt(vec, pri int) {
 
 func (k *KB11) handleinterrupt(vec int) {
 	defer func() {
-		trap := recover()
-		switch trap := trap.(type) {
+		trap = recover()
+		switch trap = trap.(type) {
 		case struct {
 			num int
 			msg string
@@ -1204,13 +1269,13 @@ func (k *KB11) handleinterrupt(vec int) {
 			panic(trap)
 		}
 		k.R[7] = int(memory[vec>>1])
-		k.PS = memory[(vec>>1)+1]
+		PS = memory[(vec>>1)+1]
 		if prevuser {
-			k.PS |= (1 << 13) | (1 << 12)
+			PS |= (1 << 13) | (1 << 12)
 		}
 		waiting = false
 	}()
-	prev := k.PS
+	prev = PS
 	k.switchmode(false)
 	k.push(prev)
 	k.push(uint16(k.R[7]))
@@ -1219,8 +1284,8 @@ func (k *KB11) handleinterrupt(vec int) {
 func (k *KB11) trapat(vec int, msg string) {
 	var prev uint16
 	defer func() {
-		t := recover()
-		switch t := t.(type) {
+		t = recover()
+		switch t = t.(type) {
 		case trap:
 			writedebug("red stack trap!\n")
 			memory[0] = uint16(k.R[7])
@@ -1233,9 +1298,9 @@ func (k *KB11) trapat(vec int, msg string) {
 			panic(t)
 		}
 		k.R[7] = int(memory[vec>>1])
-		k.PS = memory[(vec>>1)+1]
+		PS = memory[(vec>>1)+1]
 		if prevuser {
-			k.PS |= (1 << 13) | (1 << 12)
+			PS |= (1 << 13) | (1 << 12)
 		}
 		waiting = false
 	}()
@@ -1245,80 +1310,15 @@ func (k *KB11) trapat(vec int, msg string) {
 	writedebug("trap " + ostr(vec, 6) + " occured: " + msg + "\n")
 	k.printstate()
 
-	prev = k.PS
+	prev = PS
 	k.switchmode(false)
 	k.push(prev)
 	k.push(uint16(k.R[7]))
 }
 
-func (k *KB11) aget(v int, l int) int {
-	if (v&7) >= 6 || (v&010 != 0) {
-		l = 2
-	}
-	if (v & 070) == 000 {
-		return -(v + 1)
-	}
-	var addr uint16
-	switch v & 060 {
-	case 000:
-		v &= 7
-		addr = uint16(k.R[v&7])
-	case 020:
-		addr = uint16(k.R[v&7])
-		k.R[v&7] += l
-	case 040:
-		k.R[v&7] -= l
-		addr = uint16(k.R[v&7])
-	case 060:
-		addr = k.fetch16()
-		addr += uint16(k.R[v&7])
-	}
-	addr &= 0xFFFF
-	if v&010 != 0 {
-		addr = k.read16(addr)
-	}
-	return int(addr)
-}
 
-func (k *KB11) memread(a, l int) uint16 {
-	if a < 0 {
-		r := uint8(-(a + 1))
-		if l == 2 {
-			return uint16(k.R[r&7])
-		} else {
-			return uint16(k.R[r&7]) & 0xFF
-		}
-	}
-	if l == 2 {
-		return k.read16(uint16(a))
-	}
-	return k.read8(uint16(a))
-}
 
-func (k *KB11) memwrite(a, l int, v uint16) {
-	if a < 0 {
-		r := uint8(-(a + 1))
-		if l == 2 {
-			k.R[r&7] = int(v)
-		} else {
-			k.R[r&7] &= 0xFF00
-			k.R[r&7] |= int(v)
-		}
-	} else if l == 2 {
-		k.write16(uint16(a), v)
-	} else {
-		k.write8(uint16(a), v)
-	}
-}
 
-func (k *KB11) branch(o int) {
-	//printstate()
-	if o&0x80 == 0x80 {
-		o = -(((^o) + 1) & 0xFF)
-	}
-	o <<= 1
-	k.R[7] += o
-}
 
 	k.unibus.rk.Step()
 	k.unibus.cons.Step(k)
@@ -1326,8 +1326,8 @@ func (k *KB11) branch(o int) {
 
 func (k *KB11) onestep() {
 	defer func() {
-		t := recover()
-		switch t := t.(type) {
+		t = recover()
+		switch t = t.(type) {
 		case trap:
 			k.trapat(t.num, t.msg)
 		case nil:
@@ -1338,7 +1338,7 @@ func (k *KB11) onestep() {
 	}()
 
 	k.step()
-	if len(interrupts) > 0 && interrupts[0].pri >= ((int(k.PS)>>5)&7) {
+	if len(interrupts) > 0 && interrupts[0].pri >= ((int(PS)>>5)&7) {
 		//fmt.Printf("IRQ: %06o\n", interrupts[0].vec)
 		k.handleinterrupt(interrupts[0].vec)
 		interrupts = interrupts[1:]
@@ -1352,34 +1352,6 @@ func (k *KB11) onestep() {
 		}
 	}
 }
-
-func New() *KB11 {
-	var cpu KB11
-	var unibus Unibus
-	var rk RK05
-	var cons Console
-	cpu.unibus = &unibus
-	unibus.cpu = &cpu
-	unibus.rk = &rk
-	unibus.cons = &cons
-	rk.rkinit()
-	cpu.Reset()
-	return &cpu
-}
-
-type Unibus struct {
-	cpu  *KB11
-	rk   *RK05 // drive 0
-	cons *Console
-}
-
-// uint18 represents a unibus 18 bit physical address
-type uint18 uint32
-
-package pdp11
-
-import "fmt"
-import "io/ioutil"
 
 const imglen = 2077696
 
@@ -1472,10 +1444,10 @@ func (r *RK05) Step() {
 	if r.sector > 013 {
 		r.rkerror(RKNXS)
 	}
-	pos := (r.cylinder*24 + r.surface*12 + r.sector) * 512
-	for i := 0; i < 256 && r.RKWC != 0; i++ {
+	pos = (r.cylinder*24 + r.surface*12 + r.sector) * 512
+	for i = 0; i < 256 && r.RKWC != 0; i++ {
 		if w {
-			val := memory[r.RKBA>>1]
+			val = memory[r.RKBA>>1]
 			r.rkdisk[pos] = byte(val & 0xFF)
 			r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
 		} else {
@@ -1625,7 +1597,7 @@ func (c *Console) getchar() int {
 func (c *Console) Step(k *KB11) {
 	if c.ready {
 		select {
-		case v, ok := <-c.Input:
+		case v, ok = <-c.Input:
 			if ok {
 				c.addchar(int(v))
 			}
@@ -1768,7 +1740,7 @@ func disasmaddr(m uint16, a uint18) string {
 			return fmt.Sprintf("**%06o", (a+2+uint18(memory[a>>1]))&0xFFFF)
 		}
 	}
-	r := rs[m&7]
+	r = rs[m&7]
 	switch m & 070 {
 	case 000:
 		return r
@@ -1793,10 +1765,10 @@ func disasmaddr(m uint16, a uint18) string {
 }
 
 func disasm(a uint18) string {
-	ins := memory[a>>1]
-	msg := "???"
+	ins = memory[a>>1]
+	msg = "???"
 	var l D
-	for i := 0; i < len(disasmtable); i++ {
+	for i = 0; i < len(disasmtable); i++ {
 		l = disasmtable[i]
 		if (ins & l.inst) == l.arg {
 			msg = l.msg
@@ -1809,9 +1781,9 @@ func disasm(a uint18) string {
 	if l.b && (ins&0100000 == 0100000) {
 		msg += "B"
 	}
-	s := (ins & 07700) >> 6
-	d := ins & 077
-	o := byte(ins & 0377)
+	s = (ins & 07700) >> 6
+	d = ins & 077
+	o = byte(ins & 0377)
 	switch l.flag {
 	case "SD":
 		msg += " " + disasmaddr(s, a) + ","
@@ -1843,7 +1815,7 @@ package pdp11
 
 
 func mmuread16(a uint18) uint16 {
-	i := ((a & 017) >> 1)
+	i = ((a & 017) >> 1)
 	if (a >= 0772300) && (a < 0772320) {
 		return pages[i].pdr
 	}
@@ -1860,7 +1832,7 @@ func mmuread16(a uint18) uint16 {
 }
 
 func mmuwrite16(a uint18, v uint16) {
-	i := ((a & 017) >> 1)
+	i = ((a & 017) >> 1)
 	if (a >= 0772300) && (a < 0772320) {
 		pages[i] = createpage(pages[i].par, v)
 		return
