@@ -154,7 +154,6 @@ void cpureset(void) {
     memory[01000+i] = bootrom[i];
   }
   mmuinit();
-
   R[7] = 02002;
   clearterminal();
   rkreset();
@@ -921,9 +920,7 @@ void cpustep() {
     if (curuser) {
       break;
     }
-    //writedebug("HALT\n")
-    //printstate()
-    //	panic("HALT")
+    Serial.print("HALT\n"); panic();
     return;
   case 0000001: // WAIT
     if (curuser) {
