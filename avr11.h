@@ -16,6 +16,8 @@ enum {
   MEMSIZE = 2048,
 };
 
+extern uint16_t memory[MEMSIZE];
+
 struct intr { 
   int32_t vec; 
   int32_t pri;  

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <SD.h>
 #include "avr11.h"
 #include "rk05.h"
 #include "cons.h"
@@ -24,10 +25,12 @@ void setup(void)
   Serial.println("setting up..."); 
   cpureset();
   Serial.println("setup done.");
+  rkinit();
 }
 
 void loop() {
   cpustep();
+  rkstep();
 }
 
 void printstate() {
@@ -132,8 +135,6 @@ static uint16_t bootrom[29] = {
 
 uint16_t memory[MEMSIZE];
 
-
-
 void cpureset(void) {
   uint16_t i;
   for (i = 0; i < 8; i++) {
@@ -168,7 +169,7 @@ void cpustep() {
   ia = decode(PC, false, curuser);
   R[7] += 2;
 
-  printstate();
+  //printstate();
 
   instr = (int32_t)physread16(ia);
 
@@ -1275,80 +1276,6 @@ uint16_t xor16(uint16_t x, uint16_t y) {
   return z;
 }
 
-
-
-
-
-/**
-void rkstep() {
-   bool w;
-  if (!r.running) {
-  		return;
- }
- switch ((r.RKCS & 017) >> 1) {
- case 0:
-  		return;
-  	case 1:
-  		w = true; break;
-  	case 2:
-  		w = false; break;
-  	default:
-  		panic(); //panic(fmt.Sprintf("unimplemented RK05 operation %#o", ((r.RKCS & 017) >> 1)))
- }
-  	//fmt.Println("rkrwsec: RKBA:", r.RKBA, "RKWC:", r.RKWC, "cylinder:", r.cylinder, "sector:", r.sector)
- if (drive != 0) {
-  		rkerror(RKNXD);
-  	}
- if (cylinder > 0312) {
-  		rkerror(RKNXC);
-  	}
- if (sector > 013) {
-   rkerror(RKNXS);
- }
- 
- * 	pos = (r.cylinder*24 + r.surface*12 + r.sector) * 512
- * 	for i = 0; i < 256 && r.RKWC != 0; i++ {
- * 		if w {
- * 			val = memory[r.RKBA>>1]
- * 			r.rkdisk[pos] = byte(val & 0xFF)
- * 			r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
- * 		} else {
- * 			memory[r.RKBA>>1] = uint16(r.rkdisk[pos]) | uint16(r.rkdisk[pos+1])<<8
- * 		}
- * 		r.RKBA += 2
- * 		pos += 2
- * 		r.RKWC = (r.RKWC + 1) & 0xFFFF
- * 	}
- * 	r.sector++
- * 	if r.sector > 013 {
- * 		r.sector = 0
- * 		r.surface++
- * 		if r.surface > 1 {
- * 			r.surface = 0
- * 			r.cylinder++
- * 			if r.cylinder > 0312 {
- * 				r.rkerror(RKOVR)
- * 			}
- * 		}
- * 	}
- * 	if r.RKWC == 0 {
- * 		r.running = false
- * 		r.rkready()
- * 		if r.RKCS&(1<<6) != 0 {
- * 			interrupt(INTRK, 5)
- * 		}
- * 	}
- * }
- * 
- 
- * 
- * func (r *RK05) rkinit() {
- * 	var err error
- * 	r.rkdisk, err = ioutil.ReadFile("rk0")
- * 	if err != nil {
- * 		panic(err)
- * 	}
- * }
 
 
 /**
