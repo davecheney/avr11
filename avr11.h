@@ -6,6 +6,13 @@ enum {
 };
 
 enum {
+  	RKOVR = (1 << 14),
+  	RKNXD = (1 << 7),
+  	RKNXC = (1 << 6),
+  	RKNXS = (1 << 5)
+};
+
+enum {
   MEMSIZE = 2048,
 };
 
@@ -27,16 +34,6 @@ enum {
 	INTRK     = 0220
 };
 
-typedef struct {
-	uint16_t par, pdr;
-	uint16_t addr, len;
-	uint8_t read, write, ed;
-} page;
-
-page pages[16];
-
-page createpage(uint16_t par, uint16_t pdr);
-
 uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
 
 uint16_t physread8(uint32_t addr);
@@ -44,9 +41,9 @@ uint16_t physread16(uint32_t addr);
 void physwrite16(uint32_t a, uint16_t v);
 void physwrite8(uint32_t a, uint16_t v);
 void switchmode(uint8_t newm);
-int32_t aget(int32_t v, int32_t l);
-uint16_t memread(int32_t a, int32_t l);
-void memwrite(int32_t a, int32_t l, uint16_t v);
+int32_t aget(uint8_t v, uint8_t l);
+uint16_t memread(int32_t a, uint8_t l);
+void memwrite(int32_t a, uint8_t l, uint16_t v);
 
 void cpustep();
 void cpureset(void);
