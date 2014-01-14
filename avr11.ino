@@ -12,27 +12,29 @@
 
 // create a FILE structure to reference our UART output function
 
-static FILE uartout = {0} ;
+static FILE uartout = {
+  0} 
+;
 
 // create a output function
 // This works because Serial.write, although of
 // type virtual, already exists.
 static int uart_putchar (char c, FILE *stream)
 {
-    Serial.write(c) ;
-    return 0 ;
+  Serial.write(c) ;
+  return 0 ;
 }
 
 void setup(void)
 {
-   // Start the UART
-   Serial.begin(9600) ;
+  // Start the UART
+  Serial.begin(9600) ;
 
-   // fill in the UART file descriptor with pointer to writer.
-   fdev_setup_stream (&uartout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
+  // fill in the UART file descriptor with pointer to writer.
+  fdev_setup_stream (&uartout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
-   // The uart is the standard output device STDOUT.
-   stdout = &uartout ;
+  // The uart is the standard output device STDOUT.
+  stdout = &uartout ;
 
   printf("setting up...\r\n"); 
   cpureset();
@@ -43,7 +45,8 @@ void setup(void)
 void loop() {
   if (setjmp(trapbuf) == 0) {
     cpustep();
-  } else {
+  } 
+  else {
     trapat(setjmp(trapbuf));
   }
   rkstep();
@@ -51,14 +54,14 @@ void loop() {
 
 void panic(char* msg) {
   printf("panic %s\r\n", msg);
-    printstate();
+  printstate();
   while (true) delay(1);
 }
 
 /**
  * 
  * var writedebug = fmt.Print
-
+ * 
  * func interrupt(vec, pri int) {
  * 	var i int
  * 	if vec&1 == 1 {
@@ -177,12 +180,13 @@ void panic(char* msg) {
  * 	}
  * }
  * 
- 
-
+ * 
+ * 
  * package pdp11
  * 
  * }
  * 
  */
- 
+
+
 

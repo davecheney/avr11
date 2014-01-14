@@ -24,13 +24,14 @@ enum {
 extern uint16_t memory[MEMSIZE];
 
 enum {
-	FLAGN = 8,
-	FLAGZ = 4,
-	FLAGV = 2,
-	FLAGC = 1
+  FLAGN = 8,
+  FLAGZ = 4,
+  FLAGV = 2,
+  FLAGC = 1
 };
 
 void cpustep();
 void cpureset(void);
 void switchmode(bool newm);
 void trapat(uint16_t vec);
+

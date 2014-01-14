@@ -26,172 +26,172 @@ enum {
 
 D disamtable[] = {
   {
-    0077700, 0005000, "CLR", DD, true  }
+    0077700, 0005000, "CLR", DD, true    }
   ,
   {
-    0077700, 0005100, "COM", DD, true  }
+    0077700, 0005100, "COM", DD, true    }
   ,
   {
-    0077700, 0005200, "INC", DD, true  }
+    0077700, 0005200, "INC", DD, true    }
   ,
   {
-    0077700, 0005300, "DEC", DD, true  }
+    0077700, 0005300, "DEC", DD, true    }
   ,
   {
-    0077700, 0005400, "NEG", DD, true  }
+    0077700, 0005400, "NEG", DD, true    }
   ,
   {
-    0077700, 0005700, "TST", DD, true  }
+    0077700, 0005700, "TST", DD, true    }
   ,
   {
-    0077700, 0006200, "ASR", DD, true  }
+    0077700, 0006200, "ASR", DD, true    }
   ,
   {
-    0077700, 0006300, "ASL", DD, true  }
+    0077700, 0006300, "ASL", DD, true    }
   ,
   {
-    0077700, 0006000, "ROR", DD, true  }
+    0077700, 0006000, "ROR", DD, true    }
   ,
   {
-    0077700, 0006100, "ROL", DD, true  }
+    0077700, 0006100, "ROL", DD, true    }
   ,
   {
-    0177700, 0000300, "SWAB", DD, false  }
+    0177700, 0000300, "SWAB", DD, false    }
   ,
   {
-    0077700, 0005500, "ADC", DD, true  }
+    0077700, 0005500, "ADC", DD, true    }
   ,
   {
-    0077700, 0005600, "SBC", DD, true  }
+    0077700, 0005600, "SBC", DD, true    }
   ,
   {
-    0177700, 0006700, "SXT", DD, false  }
+    0177700, 0006700, "SXT", DD, false    }
   ,
   {
-    0070000, 0010000, "MOV", S|DD, true  }
+    0070000, 0010000, "MOV", S|DD, true    }
   ,
   {
-    0070000, 0020000, "CMP", S|DD, true  }
+    0070000, 0020000, "CMP", S|DD, true    }
   ,
   {
-    0170000, 0060000, "ADD", S|DD, false  }
+    0170000, 0060000, "ADD", S|DD, false    }
   ,
   {
-    0170000, 0160000, "SUB", S|DD, false  }
+    0170000, 0160000, "SUB", S|DD, false    }
   ,
   {
-    0070000, 0030000, "BIT", S|DD, true  }
+    0070000, 0030000, "BIT", S|DD, true    }
   ,
   {
-    0070000, 0040000, "BIC", S|DD, true  }
+    0070000, 0040000, "BIC", S|DD, true    }
   ,
   {
-    0070000, 0050000, "BIS", S|DD, true  }
+    0070000, 0050000, "BIS", S|DD, true    }
   ,
   {
-    0177000, 0070000, "MUL", RR|DD, false  }
+    0177000, 0070000, "MUL", RR|DD, false    }
   ,
   {
-    0177000, 0071000, "DIV", RR|DD, false  }
+    0177000, 0071000, "DIV", RR|DD, false    }
   ,
   {
-    0177000, 0072000, "ASH", RR|DD, false  }
+    0177000, 0072000, "ASH", RR|DD, false    }
   ,
   {
-    0177000, 0073000, "ASHC", RR|DD, false  }
+    0177000, 0073000, "ASHC", RR|DD, false    }
   ,
   {
-    0177400, 0000400, "BR", O, false  }
+    0177400, 0000400, "BR", O, false    }
   ,
   {
-    0177400, 0001000, "BNE", O, false  }
+    0177400, 0001000, "BNE", O, false    }
   ,
   {
-    0177400, 0001400, "BEQ", O, false  }
+    0177400, 0001400, "BEQ", O, false    }
   ,
   {
-    0177400, 0100000, "BPL", O, false  }
+    0177400, 0100000, "BPL", O, false    }
   ,
   {
-    0177400, 0100400, "BMI", O, false  }
+    0177400, 0100400, "BMI", O, false    }
   ,
   {
-    0177400, 0101000, "BHI", O, false  }
+    0177400, 0101000, "BHI", O, false    }
   ,
   {
-    0177400, 0101400, "BLOS", O, false  }
+    0177400, 0101400, "BLOS", O, false    }
   ,
   {
-    0177400, 0102000, "BVC", O, false  }
+    0177400, 0102000, "BVC", O, false    }
   ,
   {
-    0177400, 0102400, "BVS", O, false  }
+    0177400, 0102400, "BVS", O, false    }
   ,
   {
-    0177400, 0103000, "BCC", O, false  }
+    0177400, 0103000, "BCC", O, false    }
   ,
   {
-    0177400, 0103400, "BCS", O, false  }
+    0177400, 0103400, "BCS", O, false    }
   ,
   {
-    0177400, 0002000, "BGE", O, false  }
+    0177400, 0002000, "BGE", O, false    }
   ,
   {
-    0177400, 0002400, "BLT", O, false  }
+    0177400, 0002400, "BLT", O, false    }
   ,
   {
-    0177400, 0003000, "BGT", O, false  }
+    0177400, 0003000, "BGT", O, false    }
   ,
   {
-    0177400, 0003400, "BLE", O, false  }
+    0177400, 0003400, "BLE", O, false    }
   ,
   {
-    0177700, 0000100, "JMP", DD, false  }
+    0177700, 0000100, "JMP", DD, false    }
   ,
   {
-    0177000, 0004000, "JSR", RR|DD, false  }
+    0177000, 0004000, "JSR", RR|DD, false    }
   ,
   {
-    0177770, 0000200, "RTS", RR, false  }
+    0177770, 0000200, "RTS", RR, false    }
   ,
   {
-    0177777, 0006400, "MARK", 0, false  }
+    0177777, 0006400, "MARK", 0, false    }
   ,
   {
-    0177000, 0077000, "SOB", RR|O, false  }
+    0177000, 0077000, "SOB", RR|O, false    }
   ,
   {
-    0177777, 0000005, "RESET", 0, false  }
+    0177777, 0000005, "RESET", 0, false    }
   ,
   {
-    0177700, 0006500, "MFPI", DD, false  }
+    0177700, 0006500, "MFPI", DD, false    }
   ,
   {
-    0177700, 0006600, "MTPI", DD, false  }
+    0177700, 0006600, "MTPI", DD, false    }
   ,
   {
-    0177777, 0000001, "WAIT", 0, false  }
+    0177777, 0000001, "WAIT", 0, false    }
   ,
   {
-    0177777, 0000002, "RTI", 0, false  }
+    0177777, 0000002, "RTI", 0, false    }
   ,
   {
-    0177777, 0000006, "RTT", 0, false  }
+    0177777, 0000006, "RTT", 0, false    }
   ,
   {
-    0177400, 0104000, "EMT", N, false  }
+    0177400, 0104000, "EMT", N, false    }
   ,
   {
-    0177400, 0104400, "TRAP", N, false  }
+    0177400, 0104400, "TRAP", N, false    }
   ,
   {
-    0177777, 0000003, "BPT", 0, false  }
+    0177777, 0000003, "BPT", 0, false    }
   ,
   {
-    0177777, 0000004, "IOT", 0, false  }
+    0177777, 0000004, "IOT", 0, false    }
   ,
   { 
-    0, 0, "", 0, false   }
+    0, 0, "", 0, false     }
   ,
 };
 
@@ -304,7 +304,7 @@ void printstate() {
   uint16_t inst;
 
   printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n[", 
-    uint16_t(R[0]), uint16_t(R[1]), uint16_t(R[2]), uint16_t(R[3]), uint16_t(R[4]), uint16_t(R[5]), uint16_t(R[6]), uint16_t(R[7])); 
+  uint16_t(R[0]), uint16_t(R[1]), uint16_t(R[2]), uint16_t(R[3]), uint16_t(R[4]), uint16_t(R[5]), uint16_t(R[6]), uint16_t(R[7])); 
 
   if (prevuser) {
     printf("u");
@@ -348,3 +348,4 @@ void printstate() {
   disasm(ia);
   printf("\r\n");
 }
+

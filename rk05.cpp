@@ -58,81 +58,90 @@ void rkgo() {
   }
 }
 
-void rkerror(uint16_t e) { }
+void rkerror(uint16_t e) { 
+}
 
 void rkstep() {
-   bool w;
+  bool w;
   if (!running) {
-  		return;
-   }
-   
-   switch ((RKCS & 017) >> 1) {
- case 0:
-  		return;
-  	case 1:
-  		w = true; break;
-  	case 2:
-  		w = false; break;
-  	default:
-  		panic("unimplemented RK05 operation"); //  %#o", ((r.RKCS & 017) >> 1)))
- }
- 
- Serial.print("rkstep: RKBA: "); Serial.print(RKBA, DEC);
- Serial.print(" RKWC: "); Serial.print(RKWC, DEC);
- Serial.print(" cylinder: "); Serial.print(cylinder, DEC);
- Serial.print(" sector: "); Serial.print(sector, DEC); Serial.print("\r\n");
+    return;
+  }
 
- if (drive != 0) {
-  		rkerror(RKNXD);
-  	}
- if (cylinder > 0312) {
-  		rkerror(RKNXC);
-  	}
- if (sector > 013) {
-   rkerror(RKNXS);
- }
- 
- int32_t pos = (cylinder*24 + surface*12 + sector) * 512;
- if (!rkdata.seek(pos)) {
-     panic("rkstep: failed to seek");
+  switch ((RKCS & 017) >> 1) {
+  case 0:
+    return;
+  case 1:
+    w = true; 
+    break;
+  case 2:
+    w = false; 
+    break;
+  default:
+    panic("unimplemented RK05 operation"); //  %#o", ((r.RKCS & 017) >> 1)))
   }
- 
- uint16_t i;
- uint16_t val;
- for (i = 0; i < 256 && RKWC != 0; i++) {
-  		if (w) {
-  			//val = memory[r.RKBA>>1]
-  			//r.rkdisk[pos] = byte(val & 0xFF)
-  			//r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
-  		} else {
-                        val = rkdata.read() | (rkdata.read()<<8); 
-  			memory[RKBA>>1] = val;
-  		}
-  		RKBA += 2;
-  		pos += 2;
-  		RKWC = (RKWC + 1) & 0xFFFF;
-  	}
-  	sector++;
-  	if (sector > 013) {
-  		sector = 0;
-  		surface++;
-  		if (surface > 1) {
-  			surface = 0;
-  			cylinder++;
-  			if (cylinder > 0312) {
-  				rkerror(RKOVR);
-  			}
-  		}
-  	}
-  	if (RKWC == 0) {
-  		running = false;
-  		rkready();
-  		if (RKCS&(1<<6)) {
-  			//interrupt(INTRK, 5)
-  		}
-  	}
+
+  Serial.print("rkstep: RKBA: "); 
+  Serial.print(RKBA, DEC);
+  Serial.print(" RKWC: "); 
+  Serial.print(RKWC, DEC);
+  Serial.print(" cylinder: "); 
+  Serial.print(cylinder, DEC);
+  Serial.print(" sector: "); 
+  Serial.print(sector, DEC); 
+  Serial.print("\r\n");
+
+  if (drive != 0) {
+    rkerror(RKNXD);
   }
-  
+  if (cylinder > 0312) {
+    rkerror(RKNXC);
+  }
+  if (sector > 013) {
+    rkerror(RKNXS);
+  }
+
+  int32_t pos = (cylinder*24 + surface*12 + sector) * 512;
+  if (!rkdata.seek(pos)) {
+    panic("rkstep: failed to seek");
+  }
+
+  uint16_t i;
+  uint16_t val;
+  for (i = 0; i < 256 && RKWC != 0; i++) {
+    if (w) {
+      //val = memory[r.RKBA>>1]
+      //r.rkdisk[pos] = byte(val & 0xFF)
+      //r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
+    } 
+    else {
+      val = rkdata.read() | (rkdata.read()<<8); 
+      memory[RKBA>>1] = val;
+    }
+    RKBA += 2;
+    pos += 2;
+    RKWC = (RKWC + 1) & 0xFFFF;
+  }
+  sector++;
+  if (sector > 013) {
+    sector = 0;
+    surface++;
+    if (surface > 1) {
+      surface = 0;
+      cylinder++;
+      if (cylinder > 0312) {
+        rkerror(RKOVR);
+      }
+    }
+  }
+  if (RKWC == 0) {
+    running = false;
+    rkready();
+    if (RKCS&(1<<6)) {
+      //interrupt(INTRK, 5)
+    }
+  }
+}
+
 
 void rkwrite16(int32_t a, uint16_t v) {
   switch (a) {
@@ -181,7 +190,7 @@ void rkinit() {
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
   // or the SD library functions will not work. 
   pinMode(4, OUTPUT);
-  
+
   pinMode(13, OUTPUT); // d13 is our sdcard access indicator
 
   if (!SD.begin(4)) {
@@ -198,5 +207,6 @@ void rkinit() {
     panic("rkinit: could not open rk0");
   } 
 }
+
 
 

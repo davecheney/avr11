@@ -33,7 +33,7 @@ void mmuinit() {
 
 page createpage(uint16_t par, uint16_t pdr) {
   page p = { 
-    par, pdr   };
+    par, pdr     };
   return p;
 }
 
@@ -61,7 +61,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    
+
     //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
     trap(INTFAULT);
   }
@@ -134,3 +134,4 @@ void mmuwrite16(int32_t a, uint16_t v) {
   //trap{INTBUS, "write to invalid address " + ostr(a, 6)  }
   trap(INTBUS);
 }
+

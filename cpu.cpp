@@ -31,7 +31,7 @@ void cpureset(void) {
   prevuser = 0;
   SR0 = 0;
   LKS = 1 << 7;
-    uint16_t i;
+  uint16_t i;
   for (i = 0; i < 29; i++) {
     memory[01000+i] = bootrom[i];
   }
@@ -203,7 +203,7 @@ void cpustep() {
   R[7] += 2;
 
   instr = (int32_t)physread16(ia);
-  
+
   if (PRINTSTATE) printstate();
 
   d = instr & 077;
@@ -1022,7 +1022,7 @@ uint16_t physread16(uint32_t a) {
   } 
   //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
   trap(INTBUS);
-  
+
 }
 
 jmp_buf trapbuf;
@@ -1035,38 +1035,39 @@ void trap(uint16_t vec) {
 void trapat(uint16_t vec) { // , msg string) {
   uint16_t prev;	
   /*var prev uint16
-  	defer func() {
-  		t = recover()
-  		switch t = t.(type) {
-  		case trap:
-  			writedebug("red stack trap!\n")
-  			memory[0] = uint16(k.R[7])
-  			memory[1] = prev
-  			vec = 4
-  			panic("fatal")
-  		case nil:
-  			break
-  		default:
-  			panic(t)
-  		}
-  */
+   	defer func() {
+   		t = recover()
+   		switch t = t.(type) {
+   		case trap:
+   			writedebug("red stack trap!\n")
+   			memory[0] = uint16(k.R[7])
+   			memory[1] = prev
+   			vec = 4
+   			panic("fatal")
+   		case nil:
+   			break
+   		default:
+   			panic(t)
+   		}
+   */
   R[7] = memory[vec>>1];
   PS = memory[(vec>>1)+1];
   if (prevuser) {
-  	PS |= (1 << 13) | (1 << 12);
+    PS |= (1 << 13) | (1 << 12);
   }
- // waiting = false;
-  
+  // waiting = false;
+
   if (vec&1) {
-  		panic("Thou darst calling trapat() with an odd vector number?");
+    panic("Thou darst calling trapat() with an odd vector number?");
   }
   printf("trap %06d occured\r\n", vec);
   printstate();
-  
+
   prev = PS;
   switchmode(false);
-   push(prev);
+  push(prev);
   push(R[7]);
-  }
+}
+
 
 
