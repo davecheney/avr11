@@ -290,7 +290,7 @@ void cpustep() {
     if (!((val1^val2)&0x8000) && ((val2^val)&0x8000)) {
       PS |= FLAGV;
     }
-    if ((val1+val2) >= 0xFFFF) {
+    if (((int32_t)val1+(int32_t)val2) >= 0xFFFF) {
       PS |= FLAGC;
     }
     memwrite(da, 2, val);
