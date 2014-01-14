@@ -973,7 +973,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     p = pages[(a >> 13)];
   }
 
-  if (w && !p.write) {
+  if (w && !p.write()) {
     SR0 = (1 << 13) | 1;
     SR0 |= a >> 12 & ~1;
     if (user) {
@@ -982,7 +982,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     SR2 = PC;
     panic(); //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
   }
-  if (!p.read) {
+  if (!p.read()) {
     SR0 = (1 << 15) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -993,7 +993,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
   }
   block = a >> 6 & 0177;
   disp = a & 077;
-  if (((p.ed && (block < p.len)) || !(p.ed && (block > p.len)))) {
+  if (((p.ed() && (block < p.len())) || !(p.ed() && (block > p.len())))) {
     //if(p.ed ? (block < p.len) : (block > p.len)) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;
@@ -1004,9 +1004,10 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     panic(); // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
   }
   if (w) {
+    // watch out !
     p.pdr |= 1 << 6;
   }
-  return ((block+p.addr) << 6) + disp;
+  return ((block+p.addr()) << 6) + disp;
 }
 
 uint16_t read8(uint16_t a) {

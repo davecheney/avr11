@@ -4,16 +4,35 @@
 
 page pages[16];
 
+bool page::read() { 
+  return pdr&2;
+}
+
+bool page::write() { 
+  return pdr&6; 
+}
+bool page::ed() { 
+  return pdr&8; 
+}
+
+uint16_t page::addr() {
+  return par & 07777;
+}
+
+uint16_t page::len() {
+  return (pdr >> 8) &0x7f;
+}
+
 void mmuinit() {
   uint8_t i;
-    for (i = 0; i < 16; i++) {
+  for (i = 0; i < 16; i++) {
     pages[i] = createpage(0, 0);
   }
 }
 
 page createpage(uint16_t par, uint16_t pdr) {
   page p = { 
-    par, pdr, par & 07777, pdr >> 8 & 0x7F, (pdr & 2) == 2, (pdr & 6) == 6, (pdr & 8) == 8       };
+    par, pdr };
   return p;
 }
 
@@ -55,6 +74,8 @@ void mmuwrite16(int32_t a, uint16_t v) {
   panic(); //trap{INTBUS, "write to invalid address " + ostr(a, 6)  }
 
 }
+
+
 
 
 
