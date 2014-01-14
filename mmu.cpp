@@ -61,7 +61,9 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    panic(); //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
+    
+    //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
+    trap(INTFAULT);
   }
   if (!p.read()) {
     SR0 = (1 << 15) | 1;
@@ -70,7 +72,8 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    panic(); //panic(trap{INTFAULT, "read from no-access page " + ostr(a, 6)})
+    //panic(trap{INTFAULT, "read from no-access page " + ostr(a, 6)})
+    trap(INTFAULT);
   }
   block = a >> 6 & 0177;
   disp = a & 077;
@@ -82,7 +85,8 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    panic(); // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
+    // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
+    trap(INTFAULT);
   }
   if (w) {
     // watch out !
@@ -105,7 +109,8 @@ uint16_t mmuread16(int32_t a) {
   if ((a >= 0777640) && (a < 0777660)) {
     return pages[i+8].par;
   }
-  panic(); //trap{INTBUS, "invalid read from " + ostr(a, 6)})
+  //trap{INTBUS, "invalid read from " + ostr(a, 6)})
+  trap(INTBUS);
 }
 
 void mmuwrite16(int32_t a, uint16_t v) {
@@ -126,5 +131,6 @@ void mmuwrite16(int32_t a, uint16_t v) {
     pages[i+8] = createpage(v, pages[i+8].pdr);
     return;
   }
-  panic(); //trap{INTBUS, "write to invalid address " + ostr(a, 6)  }
+  //trap{INTBUS, "write to invalid address " + ostr(a, 6)  }
+  trap(INTBUS);
 }

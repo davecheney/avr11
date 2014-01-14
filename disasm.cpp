@@ -4,8 +4,6 @@
 #include "cpu.h"
 #include "unibus.h"
 
-extern int32_t R[8];
-
 char* rs[]={
   "R0", "R1", "R2", "R3", "R4", "R5", "SP", "PC"};
 
@@ -246,7 +244,7 @@ void disasmaddr(uint16_t m, uint32_t a) {
     printf("*%06o (%s)", memory[a>>1], rs[m&7]); 
     break;
   default: 
-    panic(); // fmt.Sprintf("disasmaddr: unknown addressing mode, register %v, mode %o", r, m&070))
+    panic("disasmaddr: unknown addressing mode"); //, register %v, mode %o", r, m&070))
   }
 }
 
@@ -301,4 +299,52 @@ void disasm(uint32_t a) {
   }
 }
 
+void printstate() {
+  uint32_t ia;
+  uint16_t inst;
 
+  printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n[", 
+    uint16_t(R[0]), uint16_t(R[1]), uint16_t(R[2]), uint16_t(R[3]), uint16_t(R[4]), uint16_t(R[5]), uint16_t(R[6]), uint16_t(R[7])); 
+
+  if (prevuser) {
+    printf("u");
+  } 
+  else {
+    printf("k");
+  }
+  if (curuser) {
+    printf("U");
+  } 
+  else {
+    printf("K");
+  }
+  if (PS&FLAGN) {
+    printf("N");
+  } 
+  else {
+    printf(" ");
+  }
+  if (PS&FLAGZ) {
+    printf("Z");
+  } 
+  else {
+    printf(" ");
+  }
+  if (PS&FLAGV) {
+    printf("V");
+  } 
+  else {
+    printf(" ");
+  }
+  if (PS&FLAGC) {
+    printf("C");
+  } 
+  else {
+    printf(" ");
+  }
+  ia = decode(PC, false, curuser);
+  inst = physread16(ia);
+  printf("]\tinstr %06o: %06o\t ", PC, inst);
+  disasm(ia);
+  printf("\r\n");
+}

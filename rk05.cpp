@@ -27,7 +27,7 @@ int32_t rkread16(int32_t a){
   case 0777412:
     return (sector) | (surface << 4) | (cylinder << 5) | (drive << 13);
   default:
-    panic(); //panic("invalid read")
+    panic("rkread16: invalid read");
   }
 }
 
@@ -54,7 +54,7 @@ void rkgo() {
     rknotready(); 
     break;
   default:
-    panic(); // (fmt.Sprintf("unimplemented RK05 operation %#o", ((r.RKCS & 017) >> 1)))
+    panic("unimplemented RK05 operation"); // %#o", ((r.RKCS & 017) >> 1)))
   }
 }
 
@@ -74,12 +74,13 @@ void rkstep() {
   	case 2:
   		w = false; break;
   	default:
-  		panic(); //panic(fmt.Sprintf("unimplemented RK05 operation %#o", ((r.RKCS & 017) >> 1)))
+  		panic("unimplemented RK05 operation"); //  %#o", ((r.RKCS & 017) >> 1)))
  }
+ 
  Serial.print("rkstep: RKBA: "); Serial.print(RKBA, DEC);
  Serial.print(" RKWC: "); Serial.print(RKWC, DEC);
  Serial.print(" cylinder: "); Serial.print(cylinder, DEC);
- Serial.print(" sector: "); Serial.print(sector, DEC); Serial.print("\n\n");
+ Serial.print(" sector: "); Serial.print(sector, DEC); Serial.print("\r\n");
 
  if (drive != 0) {
   		rkerror(RKNXD);
@@ -93,8 +94,8 @@ void rkstep() {
  
  int32_t pos = (cylinder*24 + surface*12 + sector) * 512;
  if (!rkdata.seek(pos)) {
-     Serial.print("failed to seek"); panic();
- }
+     panic("rkstep: failed to seek");
+  }
  
  uint16_t i;
  uint16_t val;
@@ -161,7 +162,7 @@ void rkwrite16(int32_t a, uint16_t v) {
     sector = v & 15;
     break;
   default:
-    panic(); // "invalid write")
+    panic("rkwrite16: invalid write");
   }
 }
 
@@ -194,8 +195,7 @@ void rkinit() {
 
   // if the file is available, write to it:
   if (!rkdata) {
-    Serial.println("error opening datalog.txt");
-    panic();
+    panic("rkinit: could not open rk0");
   } 
 }
 

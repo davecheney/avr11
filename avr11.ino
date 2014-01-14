@@ -41,82 +41,24 @@ void setup(void)
 }
 
 void loop() {
-  cpustep();
+  if (setjmp(trapbuf) == 0) {
+    cpustep();
+  } else {
+    trapat(setjmp(trapbuf));
+  }
   rkstep();
 }
 
-int32_t R[8];
-
-void printstate() {
-  uint32_t ia;
-  uint16_t inst;
-
-  printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n[", R[0], R[1], R[2], R[3], R[4], R[5], R[6], R[7]); 
-
-  if (prevuser) {
-    printf("u");
-  } 
-  else {
-    printf("k");
-  }
-  if (curuser) {
-    printf("U");
-  } 
-  else {
-    printf("K");
-  }
-  if (PS&FLAGN) {
-    printf("N");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGZ) {
-    printf("Z");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGV) {
-    printf("V");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGC) {
-    printf("C");
-  } 
-  else {
-    printf(" ");
-  }
-  ia = decode(PC, false, curuser);
-  inst = physread16(ia);
-  printf("]\tinstr %06o: %06o\t ", PC, inst);
-  disasm(ia);
-  printf("\r\n");
-}
-
-void panic() {
-  printstate();
-  printf("panic\n");
+void panic(char* msg) {
+  printf("panic %s\r\n", msg);
+    printstate();
   while (true) delay(1);
 }
 
 /**
  * 
  * var writedebug = fmt.Print
- * 
- * 
- * 
- * type trap struct {
- * 	num int
- * 	msg string
- * }
- * 
- * func (t trap) String() string {
- * 	return fmt.Sprintf("trap %06o occured: %s", t.num, t.msg)
- * }
- * 
+
  * func interrupt(vec, pri int) {
  * 	var i int
  * 	if vec&1 == 1 {

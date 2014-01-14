@@ -38,7 +38,8 @@ void physwrite8(uint32_t a, uint16_t v) {
 
 void physwrite16(uint32_t a, uint16_t v) {
   if (a%1) {
-    panic(); //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
+    //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
+    trap(INTBUS);
   }
   if (a < 0760000) {
     memory[a>>1] = v;
@@ -52,7 +53,7 @@ void physwrite16(uint32_t a, uint16_t v) {
       switchmode(true);
       break;
     default:
-      panic(); //panic("invalid mode")
+      panic("invalid mode"); 
     }
     switch ((v >> 12) & 3) {
     case 0:
@@ -62,7 +63,7 @@ void physwrite16(uint32_t a, uint16_t v) {
       prevuser = true;
       break;
     default:
-      panic(); //panic("invalid mode")
+      panic("invalid mode");
     }
     PS = v;
   } 
@@ -82,6 +83,7 @@ void physwrite16(uint32_t a, uint16_t v) {
     mmuwrite16(a, v);
   } 
   else {
-    panic(); //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})
+    //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})
+    trap(INTBUS);
   }
 }

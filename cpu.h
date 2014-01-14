@@ -1,4 +1,7 @@
+// this is all kinds of wrong
+#include <setjmp.h>
 
+extern int32_t R[8];
 
 extern uint16_t PC;
 extern uint16_t PS;
@@ -11,6 +14,8 @@ extern uint8_t curuser;
 extern uint8_t prevuser;
 
 extern uint32_t clkcounter;
+
+extern jmp_buf trapbuf;
 
 enum {
   MEMSIZE = 2048,
@@ -28,3 +33,4 @@ enum {
 void cpustep();
 void cpureset(void);
 void switchmode(bool newm);
+void trapat(uint16_t vec);

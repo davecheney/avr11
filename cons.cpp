@@ -66,7 +66,7 @@ uint16_t consread16(int32_t a) {
   	case 0777566:
   		return 0;
   	default:
-  		panic(); // "read from invalid address " + ostr(a, 6))
+  		panic("consread16: read from invalid address"); // " + ostr(a, 6))
   	}
   }
   
@@ -90,6 +90,6 @@ void conswrite16(int32_t a, uint16_t v) {
   		TPB = v & 0xff;
   		TPS &= 0xff7f;
   	default:
-  		panic(); //"write to invalid address " + ostr(a, 6))
+  		panic("conswrite16: write to invalid address"); // " + ostr(a, 6))
   	}
   }

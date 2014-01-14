@@ -7,8 +7,9 @@
 #include "rk05.h"
 #include "unibus.h"
 
+
 // signed integer registers
-static int32_t R[8];
+int32_t R[8];
 
 uint16_t	PS; // processor status
 uint16_t	PC; // address of current instruction
@@ -22,10 +23,6 @@ uint32_t clkcounter;
 uint16_t memory[MEMSIZE];
 
 void cpureset(void) {
-  uint16_t i;
-  for (i = 0; i < 8; i++) {
-    R[i] = 0;
-  }
   PS = 0;
   PC = 0;
   KSP = 0;
@@ -34,9 +31,7 @@ void cpureset(void) {
   prevuser = 0;
   SR0 = 0;
   LKS = 1 << 7;
-  for (i = 0; i < MEMSIZE; i++) {
-    memory[i] = 0;
-  }
+    uint16_t i;
   for (i = 0; i < 29; i++) {
     memory[01000+i] = bootrom[i];
   }
@@ -359,7 +354,7 @@ void cpustep() {
   case 0004000: // JSR
     val = aget(d, l);
     if (val < 0) {
-      panic();
+      panic("JSR called on register");
       break;
     }
     push((uint16_t)R[s&7]);
@@ -750,7 +745,7 @@ void cpustep() {
   case 0000100: // JMP
     val = aget(d, 2);
     if (val < 0) {
-      panic(); //panic("whoa!")
+      panic("JMP called with register dest");
       break;
     }
     R[7] = val;
@@ -790,8 +785,7 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic();		
-      //panic("invalid MFPI instruction")
+      panic("invalid MFPI instruction");
     } 
     else {
       val = physread16(decode((uint16_t)da, false, prevuser));
@@ -823,7 +817,7 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic();//	panic("invalid MTPI instrution")
+      panic("invalid MTPI instrution");
     } 
     else {
       sa = decode((uint16_t)da, true, prevuser);
@@ -959,7 +953,7 @@ void cpustep() {
     if (curuser) {
       break;
     }
-    Serial.print("HALT\n"); panic();
+    panic("HALT");
     return;
   case 0000001: // WAIT
     if (curuser) {
@@ -989,14 +983,15 @@ void cpustep() {
   case 0170011: // SETD ; not needed by UNIX, but used; therefore ignored
     return;
   }
-  //fmt.Println(ia, disasm(ia))
+  //fmt.Println(ia, disasm(ia))  
   //panic(trap{INTINVAL, "invalid instruction"})
-  panic();
+  trap(INTINVAL);
 }
 
 uint16_t physread16(uint32_t a) {
   if (a & 1) {
-    panic(); // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
+    // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
+    trap(INTBUS);
   } 
   else if (a < 0760000 ) {
     return memory[a>>1];
@@ -1025,8 +1020,53 @@ uint16_t physread16(uint32_t a) {
   else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
     mmuread16(a);
   } 
-  panic(); 
   //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
+  trap(INTBUS);
+  
 }
+
+jmp_buf trapbuf;
+
+void trap(uint16_t vec) {
+  printf("trap: %06o\r\n", vec);
+  longjmp(trapbuf, vec);
+}
+
+void trapat(uint16_t vec) { // , msg string) {
+  uint16_t prev;	
+  /*var prev uint16
+  	defer func() {
+  		t = recover()
+  		switch t = t.(type) {
+  		case trap:
+  			writedebug("red stack trap!\n")
+  			memory[0] = uint16(k.R[7])
+  			memory[1] = prev
+  			vec = 4
+  			panic("fatal")
+  		case nil:
+  			break
+  		default:
+  			panic(t)
+  		}
+  */
+  R[7] = memory[vec>>1];
+  PS = memory[(vec>>1)+1];
+  if (prevuser) {
+  	PS |= (1 << 13) | (1 << 12);
+  }
+ // waiting = false;
+  
+  if (vec&1) {
+  		panic("Thou darst calling trapat() with an odd vector number?");
+  }
+  printf("trap %06d occured\r\n", vec);
+  printstate();
+  
+  prev = PS;
+  switchmode(false);
+   push(prev);
+  push(R[7]);
+  }
 
 
