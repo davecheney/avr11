@@ -1,10 +1,7 @@
 #include <Arduino.h>
 #include "avr11.h"
+#include "cpu.h" 
 #include "mmu.h"
-
-extern uint16_t SR0;
-extern uint16_t SR2;
-extern uint16_t PC;
 
 page pages[16];
 

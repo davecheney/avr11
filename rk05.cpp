@@ -3,6 +3,7 @@
 #include <SD.h>
 #include "avr11.h"
 #include "rk05.h"
+#include "cpu.h"
 
 int32_t RKBA, RKDS, RKER, RKCS, RKWC;
 int32_t drive, sector, surface, cylinder;
