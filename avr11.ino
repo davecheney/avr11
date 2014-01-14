@@ -7,13 +7,36 @@
 #include "cpu.h"
 #include "unibus.h"
 
+// we need fundamental FILE definitions and printf declarations
+#include <stdio.h>
+
+// create a FILE structure to reference our UART output function
+
+static FILE uartout = {0} ;
+
+// create a output function
+// This works because Serial.write, although of
+// type virtual, already exists.
+static int uart_putchar (char c, FILE *stream)
+{
+    Serial.write(c) ;
+    return 0 ;
+}
+
 void setup(void)
 {
-  // Start the UART
-  Serial.begin(9600) ;
-  Serial.println("setting up..."); 
+   // Start the UART
+   Serial.begin(9600) ;
+
+   // fill in the UART file descriptor with pointer to writer.
+   fdev_setup_stream (&uartout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
+
+   // The uart is the standard output device STDOUT.
+   stdout = &uartout ;
+
+  printf("setting up...\r\n"); 
   cpureset();
-  Serial.println("setup done.");
+  printf("setup done.\r\n");
   rkinit();
 }
 
@@ -22,76 +45,60 @@ void loop() {
   rkstep();
 }
 
+int32_t R[8];
+
 void printstate() {
   uint32_t ia;
   uint16_t inst;
 
-  Serial.print("R0 "); 
-  Serial.print(R[0], OCT);
-  Serial.print(" R1 "); 
-  Serial.print(R[1], OCT);
-  Serial.print(" R2 "); 
-  Serial.print(R[2], OCT);
-  Serial.print(" R3 "); 
-  Serial.print(R[3], OCT);
-  Serial.print(" R4 "); 
-  Serial.print(R[4], OCT);
-  Serial.print(" R5 "); 
-  Serial.print(R[5], OCT);
-  Serial.print(" R6 "); 
-  Serial.print(R[6], OCT);
-  Serial.print(" R7 "); 
-  Serial.print(R[7], OCT);
-  Serial.print("\n [");
+  printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n[", R[0], R[1], R[2], R[3], R[4], R[5], R[6], R[7]); 
 
   if (prevuser) {
-    Serial.print("u");
+    printf("u");
   } 
   else {
-    Serial.print("k");
+    printf("k");
   }
   if (curuser) {
-    Serial.print("U");
+    printf("U");
   } 
   else {
-    Serial.print("K");
+    printf("K");
   }
   if (PS&FLAGN) {
-    Serial.print("N");
+    printf("N");
   } 
   else {
-    Serial.print(" ");
+    printf(" ");
   }
   if (PS&FLAGZ) {
-    Serial.print("Z");
+    printf("Z");
   } 
   else {
-    Serial.print(" ");
+    printf(" ");
   }
   if (PS&FLAGV) {
-    Serial.print("V");
+    printf("V");
   } 
   else {
-    Serial.print(" ");
+    printf(" ");
   }
   if (PS&FLAGC) {
-    Serial.print("C");
+    printf("C");
   } 
   else {
-    Serial.print(" ");
+    printf(" ");
   }
   ia = decode(PC, false, curuser);
   inst = physread16(ia);
-  Serial.print("]  instr ");
-  Serial.print(PC, OCT);
-  Serial.print(": ");
-  Serial.print(inst, OCT);
-  Serial.print("\n"); // + "   " + disasm(ia) + "\n")
+  printf("]\tinstr %06o: %06o\t ", PC, inst);
+  disasm(ia);
+  printf("\r\n");
 }
 
 void panic() {
   printstate();
-  Serial.println("panic");
+  printf("panic\n");
   while (true) delay(1);
 }
 

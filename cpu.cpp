@@ -8,8 +8,7 @@
 #include "unibus.h"
 
 // signed integer registers
-int32_t R[8] = { 
-  0, 0, 0, 0, 0, 0, 0, 0 };
+static int32_t R[8];
 
 uint16_t	PS; // processor status
 uint16_t	PC; // address of current instruction
@@ -209,6 +208,8 @@ void cpustep() {
   R[7] += 2;
 
   instr = (int32_t)physread16(ia);
+  
+  if (PRINTSTATE) printstate();
 
   d = instr & 077;
   s = (instr & 07700) >> 6;

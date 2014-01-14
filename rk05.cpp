@@ -32,6 +32,7 @@ int32_t rkread16(int32_t a){
 }
 
 void rknotready() {
+  digitalWrite(13, 1);
   RKDS &= ~(1 << 6);
   RKCS &= ~(1 << 7);
 }
@@ -39,6 +40,7 @@ void rknotready() {
 void rkready() {
   RKDS |= 1 << 6;
   RKCS |= 1 << 7;
+  digitalWrite(13, 0);
 }
 
 void rkgo() {
@@ -63,6 +65,7 @@ void rkstep() {
   if (!running) {
   		return;
    }
+   
    switch ((RKCS & 017) >> 1) {
  case 0:
   		return;
@@ -76,7 +79,7 @@ void rkstep() {
  Serial.print("rkstep: RKBA: "); Serial.print(RKBA, DEC);
  Serial.print(" RKWC: "); Serial.print(RKWC, DEC);
  Serial.print(" cylinder: "); Serial.print(cylinder, DEC);
- Serial.print(" sector: "); Serial.print(sector, DEC); Serial.print("\n");
+ Serial.print(" sector: "); Serial.print(sector, DEC); Serial.print("\n\n");
 
  if (drive != 0) {
   		rkerror(RKNXD);
@@ -177,6 +180,8 @@ void rkinit() {
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
   // or the SD library functions will not work. 
   pinMode(4, OUTPUT);
+  
+  pinMode(13, OUTPUT); // d13 is our sdcard access indicator
 
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");

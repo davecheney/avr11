@@ -1,4 +1,4 @@
-extern int32_t R[8];
+
 
 extern uint16_t PC;
 extern uint16_t PS;
