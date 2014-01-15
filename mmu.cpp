@@ -30,13 +30,6 @@ page createpage(uint16_t par, uint16_t pdr) {
   return p;
 }
 
-void _mmu::init() {
-  uint8_t i;
-  for (i = 0; i < 16; i++) {
-    pages[i] = createpage(0, 0);
-  }
-}
-
 uint32_t _mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   page p;
   uint32_t aa, block, disp;

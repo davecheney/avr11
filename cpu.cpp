@@ -34,7 +34,6 @@ void cpureset(void) {
   for (i = 0; i < 29; i++) {
     memory[01000+i] = bootrom[i];
   }
-  mmu.init();
   R[7] = 02002;
   clearterminal();
   rkreset();
