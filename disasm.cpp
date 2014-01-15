@@ -342,7 +342,7 @@ void printstate() {
   else {
     printf(" ");
   }
-  ia = decode(PC, false, curuser);
+  ia = mmu.decode(PC, false, curuser);
   inst = physread16(ia);
   printf("]\tinstr %06o: %06o\t ", PC, inst);
   disasm(ia);
