@@ -3,7 +3,7 @@
 #include "cpu.h" 
 #include "mmu.h"
 
-page pages[16];
+_mmu mmu;
 
 bool page::read() { 
   return pdr&2;
@@ -24,20 +24,13 @@ uint16_t page::len() {
   return (pdr >> 8) &0x7f;
 }
 
-void mmuinit() {
-  uint8_t i;
-  for (i = 0; i < 16; i++) {
-    pages[i] = createpage(0, 0);
-  }
-}
-
 page createpage(uint16_t par, uint16_t pdr) {
   page p = { 
     par, pdr     };
   return p;
 }
 
-uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
+uint32_t _mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   page p;
   uint32_t aa, block, disp;
   if (!(SR0&1)) {
@@ -95,7 +88,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
   return ((block+p.addr()) << 6) + disp;
 }
 
-uint16_t mmuread16(int32_t a) {
+uint16_t _mmu::read16(int32_t a) {
   uint8_t i = ((a & 017) >> 1);
   if ((a >= 0772300) && (a < 0772320)) {
     return pages[i].pdr;
@@ -113,7 +106,7 @@ uint16_t mmuread16(int32_t a) {
   trap(INTBUS);
 }
 
-void mmuwrite16(int32_t a, uint16_t v) {
+void _mmu::write16(int32_t a, uint16_t v) {
   uint8_t i = ((a & 017) >> 1);
   if ((a >= 0772300) && (a < 0772320)) {
     pages[i] = createpage(pages[i].par, v);

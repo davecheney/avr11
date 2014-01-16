@@ -1,4 +1,3 @@
-
 class page {
 public:
   uint16_t par, pdr;
@@ -10,9 +9,13 @@ public:
   bool ed();
 };
 
-page createpage(uint16_t par, uint16_t pdr);
-uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
-uint16_t mmuread16(int32_t a);
-void mmuwrite16(int32_t a, uint16_t v);
-void mmuinit();
+class _mmu {
+  page pages[16];
 
+public:
+  uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
+  uint16_t read16(int32_t a);
+  void write16(int32_t a, uint16_t v);
+};
+
+extern _mmu mmu;

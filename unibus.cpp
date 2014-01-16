@@ -80,7 +80,7 @@ void physwrite16(uint32_t a, uint16_t v) {
     rkwrite16(a, v);
   } 
   else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
-    mmuwrite16(a, v);
+    mmu.write16(a, v);
   } 
   else {
     //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})

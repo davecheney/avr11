@@ -7,7 +7,6 @@
 #include "rk05.h"
 #include "unibus.h"
 
-
 // signed integer registers
 int32_t R[8];
 
@@ -35,7 +34,6 @@ void cpureset(void) {
   for (i = 0; i < 29; i++) {
     memory[01000+i] = bootrom[i];
   }
-  mmuinit();
   R[7] = 02002;
   clearterminal();
   rkreset();
@@ -43,19 +41,19 @@ void cpureset(void) {
 }
 
 uint16_t read8(uint16_t a) {
-  return physread8(decode(a, false, curuser));
+  return physread8(mmu.decode(a, false, curuser));
 }
 
 uint16_t read16(uint16_t a) {
-  return physread16(decode(a, false, curuser));
+  return physread16(mmu.decode(a, false, curuser));
 }
 
 void write8(uint16_t a, uint16_t v) {
-  physwrite8(decode(a, true, curuser), v);
+  physwrite8(mmu.decode(a, true, curuser), v);
 }
 
 void write16(uint16_t a, uint16_t v) {
-  physwrite16(decode(a, true, curuser), v);
+  physwrite16(mmu.decode(a, true, curuser), v);
 }
 
 uint16_t memread(int32_t a, uint8_t l) {
@@ -199,7 +197,7 @@ void cpustep() {
   uint8_t d, s, l;
   int32_t ia, sa, da, val, val1, val2, o, instr;
   PC = (uint16_t)R[7];
-  ia = decode(PC, false, curuser);
+  ia = mmu.decode(PC, false, curuser);
   R[7] += 2;
 
   instr = (int32_t)physread16(ia);
@@ -788,7 +786,7 @@ void cpustep() {
       panic("invalid MFPI instruction");
     } 
     else {
-      val = physread16(decode((uint16_t)da, false, prevuser));
+      val = physread16(mmu.decode((uint16_t)da, false, prevuser));
     }
     push(val);
     PS &= 0xFFF0;
@@ -820,7 +818,7 @@ void cpustep() {
       panic("invalid MTPI instrution");
     } 
     else {
-      sa = decode((uint16_t)da, true, prevuser);
+      sa = mmu.decode((uint16_t)da, true, prevuser);
       physwrite16(sa, val);
     }
     PS &= 0xFFF0;
@@ -1018,7 +1016,7 @@ uint16_t physread16(uint32_t a) {
     return rkread16(a);
   } 
   else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
-    mmuread16(a);
+    mmu.read16(a);
   } 
   //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
   trap(INTBUS);
