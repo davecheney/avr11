@@ -1,6 +1,21 @@
-extern pdp11::mmu mmu;
+#include "cons.h"
+#include "mmu.h"
 
-uint16_t physread8(uint32_t addr);
-uint16_t physread16(uint32_t addr);
-void physwrite16(uint32_t a, uint16_t v);
-void physwrite8(uint32_t a, uint16_t v);
+namespace pdp11 {
+
+class unibus {
+
+  public:
+    pdp11::cons cons;
+
+  
+    uint16_t read8(uint32_t addr);
+    uint16_t read16(uint32_t addr);
+    void write8(uint32_t a, uint16_t v);
+    void write16(uint32_t a, uint16_t v);
+};
+
+};
+    pdp11::mmu mmu;
+
+extern pdp11::unibus unibus;

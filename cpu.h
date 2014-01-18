@@ -15,8 +15,6 @@ extern uint8_t prevuser;
 
 extern jmp_buf trapbuf;
 
-extern uint16_t memory[MEMSIZE];
-
 enum {
   FLAGN = 8,
   FLAGZ = 4,

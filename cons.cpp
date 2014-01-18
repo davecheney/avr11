@@ -2,8 +2,6 @@
 #include "avr11.h"
 #include "cons.h"
 
-pdp11::cons cons;
-
 void pdp11::cons::clearterminal() {
   TKS = 0;
   TPS = 1 << 7;

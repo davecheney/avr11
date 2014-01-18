@@ -21,5 +21,3 @@ namespace pdp11 {
   };
 
 };
-
-extern pdp11::mmu mmu;

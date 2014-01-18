@@ -3,8 +3,6 @@
 #include "cpu.h" 
 #include "mmu.h"
 
-pdp11::mmu mmu;
-
 bool page::read() { 
   return pdr&2;
 }

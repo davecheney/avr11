@@ -2,16 +2,16 @@
 #include <SPI.h>
 #include <SD.h>
 #include "avr11.h"
-//#include "rk05.h"
-#include "cons.h"
-#include "mmu.h"
-#include "cpu.h"
+#include "rk05.h"
 #include "unibus.h"
+#include "cpu.h"
 
 int serialWrite(char c, FILE *f) {
     Serial.write(c);
     return 0;
 }
+
+pdp11::unibus unibus;
 
 void setup(void)
 {
@@ -19,8 +19,9 @@ void setup(void)
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
 
+  Serial.println(F("Reset"));
   cpureset();
-//  rkinit();
+  rkinit();
   Serial.println(F("Ready"));
 }
 
@@ -31,8 +32,8 @@ void loop() {
   else {
     trapat(setjmp(trapbuf));
   }
-  cons.poll();
-  //rkstep();
+  unibus.cons.poll();
+  rkstep();
 }
 
 void panic() {

@@ -1,5 +1,5 @@
 enum {
-  MEMSIZE = 8,
+  MEMSIZE = 2048,
 };
 
 struct intr { 
@@ -21,7 +21,7 @@ enum {
 };
 
 enum {
-  PRINTSTATE = false
+  PRINTSTATE = true
 };
 
 void printstate();

@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "avr11.h"
+#include "unibus.h"
 #include "rk05.h"
 #include "cpu.h"
 
@@ -13,6 +14,7 @@ bool running;
 File rkdata;
 
 int32_t rkread16(int32_t a){
+  printf("rkread16: %06o\n",a);
   switch (a) {
   case 0777400:
     return RKDS;
@@ -102,8 +104,7 @@ void rkstep() {
       //r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
     } 
     else {
-      val = rkdata.read() | (rkdata.read()<<8); 
-      memory[RKBA>>1] = val;
+      unibus.write16(RKBA, rkdata.read() | (rkdata.read()<<8)); 
     }
     RKBA += 2;
     pos += 2;
@@ -132,6 +133,7 @@ void rkstep() {
 
 
 void rkwrite16(int32_t a, uint16_t v) {
+  printf("rkwrite: %06o\n",a);
   switch (a) {
   case 0777400:
     break;
