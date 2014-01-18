@@ -243,8 +243,6 @@ void disasmaddr(uint16_t m, uint32_t a) {
     a += 2;
     printf("*%06o (%s)", memory[a>>1], rs[m&7]); 
     break;
-  default: 
-    panic("disasmaddr: unknown addressing mode"); //, register %v, mode %o", r, m&070))
   }
 }
 
@@ -300,52 +298,19 @@ void disasm(uint32_t a) {
 }
 
 void printstate() {
-  uint32_t ia;
-  uint16_t inst;
-
-  printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n[", 
+  printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n", 
   uint16_t(R[0]), uint16_t(R[1]), uint16_t(R[2]), uint16_t(R[3]), uint16_t(R[4]), uint16_t(R[5]), uint16_t(R[6]), uint16_t(R[7])); 
-
-  if (prevuser) {
-    printf("u");
-  } 
-  else {
-    printf("k");
-  }
-  if (curuser) {
-    printf("U");
-  } 
-  else {
-    printf("K");
-  }
-  if (PS&FLAGN) {
-    printf("N");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGZ) {
-    printf("Z");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGV) {
-    printf("V");
-  } 
-  else {
-    printf(" ");
-  }
-  if (PS&FLAGC) {
-    printf("C");
-  } 
-  else {
-    printf(" ");
-  }
-  ia = mmu.decode(PC, false, curuser);
-  inst = physread16(ia);
-  printf("]\tinstr %06o: %06o\t ", PC, inst);
-  disasm(ia);
-  printf("\r\n");
+  printf("[%s%s%s%s%s%s", 
+    prevuser ? "u" : "k",
+    curuser ? "U" : "K",
+    PS&FLAGN ? "N" : " ",
+    PS&FLAGZ ? "Z" : " ",
+    PS&FLAGV ? "V" : " ", 
+    PS&FLAGC ? "C" : " ");
+  printf("]\tinstr %06o: %06o\t ", PC, physread16(mmu.decode(PC, false, curuser)));
+  #ifdef __AVR_ATmega2560__
+  disasm(mmu.decode(PC, false, curuser));
+  Serial.println("");
+  #endif
 }
 

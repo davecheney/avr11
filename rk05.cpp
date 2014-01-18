@@ -5,8 +5,8 @@
 #include "rk05.h"
 #include "cpu.h"
 
-int32_t RKBA, RKDS, RKER, RKCS, RKWC;
-int32_t drive, sector, surface, cylinder;
+uint16_t RKBA, RKDS, RKER, RKCS, RKWC;
+uint16_t drive, sector, surface, cylinder;
 
 bool running;
 
@@ -27,7 +27,8 @@ int32_t rkread16(int32_t a){
   case 0777412:
     return (sector) | (surface << 4) | (cylinder << 5) | (drive << 13);
   default:
-    panic("rkread16: invalid read");
+    Serial.println(F("rkread16: invalid read"));
+    panic();
   }
 }
 
@@ -41,21 +42,6 @@ void rkready() {
   RKDS |= 1 << 6;
   RKCS |= 1 << 7;
   digitalWrite(13, 0);
-}
-
-void rkgo() {
-  switch ((RKCS & 017) >> 1) {
-  case 0:
-    rkreset(); 
-    break;
-  case 1:
-  case 2:
-    running = true;
-    rknotready(); 
-    break;
-  default:
-    panic("unimplemented RK05 operation"); // %#o", ((r.RKCS & 017) >> 1)))
-  }
 }
 
 void rkerror(uint16_t e) { 
@@ -77,7 +63,8 @@ void rkstep() {
     w = false; 
     break;
   default:
-    panic("unimplemented RK05 operation"); //  %#o", ((r.RKCS & 017) >> 1)))
+    Serial.println(F("unimplemented RK05 operation")); //  %#o", ((r.RKCS & 017) >> 1)))
+    panic();
   }
 
   Serial.print("rkstep: RKBA: "); 
@@ -102,7 +89,8 @@ void rkstep() {
 
   int32_t pos = (cylinder*24 + surface*12 + sector) * 512;
   if (!rkdata.seek(pos)) {
-    panic("rkstep: failed to seek");
+    Serial.println(F("rkstep: failed to seek"));
+    panic();
   }
 
   uint16_t i;
@@ -155,7 +143,19 @@ void rkwrite16(int32_t a, uint16_t v) {
     RKCS &= ~017517;
     RKCS |= v & ~1; // don't set GO bit
     if (v&1) {
-      rkgo();
+  switch ((RKCS & 017) >> 1) {
+  case 0:
+    rkreset(); 
+    break;
+  case 1:
+  case 2:
+    running = true;
+    rknotready(); 
+    break;
+  default:
+    Serial.println(F("unimplemented RK05 operation")); // %#o", ((r.RKCS & 017) >> 1)))
+    panic();
+  }
     }
     break;
   case 0777406:
@@ -171,7 +171,8 @@ void rkwrite16(int32_t a, uint16_t v) {
     sector = v & 15;
     break;
   default:
-    panic("rkwrite16: invalid write");
+    Serial.println(F("rkwrite16: invalid write"));
+    panic();
   }
 }
 
@@ -184,7 +185,6 @@ void rkreset() {
 }
 
 void rkinit() { 
-  Serial.print("Initializing SD card...");
   // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
   // Note that even if it's not used as the CS pin, the hardware SS pin 
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
@@ -194,17 +194,17 @@ void rkinit() {
   pinMode(13, OUTPUT); // d13 is our sdcard access indicator
 
   if (!SD.begin(4)) {
-    Serial.println("initialization failed!");
-    return;
+    Serial.println(F("initialization failed!"));
+    panic();
   }
-  Serial.println("initialization done.");
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   rkdata = SD.open("UNIXV6.RK0");
 
   // if the file is available, write to it:
   if (!rkdata) {
-    panic("rkinit: could not open rk0");
+    Serial.println(F("rkinit: could not open rk0"));
+    panic();
   } 
 }
 

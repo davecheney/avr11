@@ -23,7 +23,7 @@ void cpureset(void) {
   LKS = 1 << 7;
   uint16_t i;
   for (i = 0; i < 8; i++) {
-    memory[(01000>>1)+i] = consecho[i];
+    memory[0+i] = consecho[i];
   }
   R[7] = 01000;
   //for (i = 0; i < 29; i++) {
@@ -346,8 +346,8 @@ void cpustep() {
   case 0004000: // JSR
     val = aget(d, l);
     if (val < 0) {
-      panic("JSR called on register");
-      break;
+      Serial.println(F("JSR called on register"));
+      panic();
     }
     push((uint16_t)R[s&7]);
     R[s&7] = R[7];
@@ -737,8 +737,8 @@ void cpustep() {
   case 0000100: // JMP
     val = aget(d, 2);
     if (val < 0) {
-      panic("JMP called with register dest");
-      break;
+      Serial.println(F("JMP called with register dest"));
+      panic();
     }
     R[7] = val;
     return;
@@ -777,7 +777,8 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic("invalid MFPI instruction");
+      Serial.println(F("invalid MFPI instruction"));
+      panic();
     } 
     else {
       val = physread16(mmu.decode((uint16_t)da, false, prevuser));
@@ -809,7 +810,7 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic("invalid MTPI instrution");
+      Serial.println(F("invalid MTPI instrution")); panic();
     } 
     else {
       sa = mmu.decode((uint16_t)da, true, prevuser);
@@ -945,8 +946,8 @@ void cpustep() {
     if (curuser) {
       break;
     }
-    panic("HALT");
-    return;
+    Serial.println(F("HALT"));
+    panic();
   case 0000001: // WAIT
     if (curuser) {
       break;
@@ -983,7 +984,6 @@ void cpustep() {
 jmp_buf trapbuf;
 
 void trap(uint16_t vec) {
-  printf("trap: %06o\r\n", vec);
   longjmp(trapbuf, vec);
 }
 
@@ -1013,9 +1013,10 @@ void trapat(uint16_t vec) { // , msg string) {
   // waiting = false;
 
   if (vec&1) {
-    panic("Thou darst calling trapat() with an odd vector number?");
+    Serial.println(F("Thou darst calling trapat() with an odd vector number?"));
+    panic();
   }
-  printf("trap %06d occured\r\n", vec);
+  printf("trap: %06o\r\n", vec);
   printstate();
 
   prev = PS;

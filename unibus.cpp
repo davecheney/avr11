@@ -51,7 +51,8 @@ void physwrite16(uint32_t a, uint16_t v) {
       switchmode(true);
       break;
     default:
-      panic("invalid mode"); 
+      Serial.println(F("invalid mode"));
+     panic(); 
     }
     switch ((v >> 12) & 3) {
     case 0:
@@ -61,7 +62,8 @@ void physwrite16(uint32_t a, uint16_t v) {
       prevuser = true;
       break;
     default:
-      panic("invalid mode");
+      Serial.println(F("invalid mode"));
+     panic(); 
     }
     PS = v;
   } 

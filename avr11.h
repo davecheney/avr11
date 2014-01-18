@@ -1,4 +1,6 @@
-
+enum {
+  MEMSIZE = 8,
+};
 
 struct intr { 
   int32_t vec; 
@@ -19,11 +21,11 @@ enum {
 };
 
 enum {
-  PRINTSTATE = true
+  PRINTSTATE = false
 };
 
 void printstate();
-void panic(char* msg);
+void panic();
 void disasm(uint32_t ia);
 
 void trap(uint16_t num);

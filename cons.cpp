@@ -10,7 +10,7 @@ void pdp11::cons::clearterminal() {
   TKB = 0;
   TPB = 0;
 }
-
+ 
 void pdp11::cons::addchar(char c) {
   switch (c) {
     case 42:
@@ -44,6 +44,9 @@ void pdp11::cons::poll() {
   }
 }
 
+// TODO(dfc) this could be rewritten to translate to the native AVR UART registers
+// http://www.appelsiini.net/2011/simple-usart-with-avr-libc
+
 uint16_t pdp11::cons::read16(uint32_t a) {
   switch (a) {
     case 0777560:
@@ -59,7 +62,8 @@ uint16_t pdp11::cons::read16(uint32_t a) {
     case 0777566:
       return 0;
     default:
-      panic("consread16: read from invalid address"); // " + ostr(a, 6))
+      Serial.println(F("consread16: read from invalid address")); // " + ostr(a, 6))
+      panic();
   }
 }
 
@@ -86,7 +90,8 @@ void pdp11::cons::write16(uint32_t a, uint16_t v) {
       TPS &= 0xff7f;
       break;
     default:
-      panic("conswrite16: write to invalid address"); // " + ostr(a, 6))
+      Serial.println(F("conswrite16: write to invalid address")); // " + ostr(a, 6))
+      panic();
   }
 }
 
