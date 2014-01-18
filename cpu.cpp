@@ -17,27 +17,21 @@ uint16_t SR0, SR2;
 uint16_t LKS;
 uint8_t curuser, prevuser;
 
-uint32_t clkcounter;
-
 uint16_t memory[MEMSIZE];
 
 void cpureset(void) {
-  PS = 0;
-  PC = 0;
-  KSP = 0;
-  USP = 0;
-  curuser = 0;
-  prevuser = 0;
-  SR0 = 0;
   LKS = 1 << 7;
   uint16_t i;
-  for (i = 0; i < 29; i++) {
-    memory[01000+i] = bootrom[i];
+  for (i = 0; i < 8; i++) {
+    memory[(01000>>1)+i] = consecho[i];
   }
-  R[7] = 02002;
-  clearterminal();
-  rkreset();
-  clkcounter = 0;
+  R[7] = 01000;
+  //for (i = 0; i < 29; i++) {
+  //  memory[01000+i] = bootrom[i];
+  //}
+  //R[7] = 02002;
+  cons.clearterminal();
+  // rkreset();
 }
 
 uint16_t read8(uint16_t a) {
@@ -984,43 +978,6 @@ void cpustep() {
   //fmt.Println(ia, disasm(ia))  
   //panic(trap{INTINVAL, "invalid instruction"})
   trap(INTINVAL);
-}
-
-uint16_t physread16(uint32_t a) {
-  if (a & 1) {
-    // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
-    trap(INTBUS);
-  } 
-  else if (a < 0760000 ) {
-    return memory[a>>1];
-  } 
-  else if (a == 0777546) {
-    return LKS;
-  } 
-  else if (a == 0777570) {
-    return 0173030;
-  } 
-  else if (a == 0777572) {
-    return SR0;
-  } 
-  else if (a == 0777576) {
-    return SR2;
-  } 
-  else if (a == 0777776) {
-    return PS;
-  } 
-  else if ((a&0777770) == 0777560) {
-    return consread16(a);
-  } 
-  else if ((a&0777760) == 0777400) {
-    return rkread16(a);
-  } 
-  else if (((a&0777600) == 0772200) || ((a&0777600) == 0777600)) {
-    mmu.read16(a);
-  } 
-  //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
-  trap(INTBUS);
-
 }
 
 jmp_buf trapbuf;
