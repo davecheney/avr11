@@ -6,15 +6,14 @@
 #include "rk05.h"
 #include "cpu.h"
 
-uint16_t RKBA, RKDS, RKER, RKCS, RKWC;
-uint16_t drive, sector, surface, cylinder;
+uint32_t RKBA, RKDS, RKER, RKCS, RKWC;
+uint32_t drive, sector, surface, cylinder;
 
 bool running;
 
 File rkdata;
 
 int32_t rkread16(int32_t a){
-  printf("rkread16: %06o\n",a);
   switch (a) {
   case 0777400:
     return RKDS;
@@ -133,7 +132,7 @@ void rkstep() {
 
 
 void rkwrite16(int32_t a, uint16_t v) {
-  printf("rkwrite: %06o\n",a);
+  //printf("rkwrite: %06o\n",a);
   switch (a) {
   case 0777400:
     break;

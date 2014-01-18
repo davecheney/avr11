@@ -4,7 +4,23 @@
 #include "unibus.h"
 #include "rk05.h"
 
-uint16_t memory[MEMSIZE];
+//uint16_t memory[MEMSIZE];
+
+void pdp11::unibus::init() {
+  SD.remove("core");
+  core = SD.open("core", FILE_WRITE);
+  if (!core) {
+    Serial.println("failed to open core file"); 
+    abort();
+  }
+  Serial.print("zeroing core file, ");
+  uint8_t buf[1024];
+  uint16_t i;
+  for (i = 0; i < 128 * 2; i++) {
+    core.write(buf, 1024);
+  }
+  Serial.println("done");
+}
 
 uint16_t pdp11::unibus::read8(uint32_t a) {
   if (a & 1) {
@@ -16,12 +32,16 @@ uint16_t pdp11::unibus::read8(uint32_t a) {
 void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
     if (a & 1) {
-      memory[a >> 1] &= 0xFF;
-      memory[a >> 1] |= v & 0xFF << 8;
+      core.seek(a);
+      core.write(v & 0xff);
+      //memory[a >> 1] &= 0xFF;
+      //memory[a >> 1] |= v & 0xFF << 8;
     }
     else {
-      memory[a >> 1] &= 0xFF00;
-      memory[a >> 1] |= v & 0xFF;
+      core.seek(a);
+      core.write(v&0xff);
+      //memory[a >> 1] &= 0xFF00;
+      //memory[a >> 1] |= v & 0xFF;
     }
   }
   else {
@@ -35,13 +55,18 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
 }
 
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
-  printf("unibus::write16: %06o\t%06o\n", a, v);
+  //printf("unibus::write16: %06o\t", a); printf("%06o\r\n", v);
   if (a % 1) {
     //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
     trap(INTBUS);
   }
   if (a < 0760000) {
-    memory[a >> 1] = v;
+    core.seek(a);
+    core.write(v & 0xff) ;
+    if (core.write((v >> 8) & 0xff) == 0) {
+      printf("failed to write to core file");
+      panic(); }
+    //memory[a >> 1] = v;
   }
   else if (a == 0777776) {
     switch (v >> 14) {
@@ -96,7 +121,9 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
     trap(INTBUS);
   }
   else if (a < 0760000 ) {
-    return memory[a >> 1];
+    core.seek(a);
+    return core.read() | (core.read()<<8);
+    //return memory[a >> 1];
   }
   else if (a == 0777546) {
     return LKS;

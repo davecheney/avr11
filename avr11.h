@@ -21,7 +21,7 @@ enum {
 };
 
 enum {
-  PRINTSTATE = true
+  PRINTSTATE = false
 };
 
 void printstate();

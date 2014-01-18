@@ -1,14 +1,18 @@
 #include "cons.h"
 #include "mmu.h"
+#include "SD.h"
 
 namespace pdp11 {
 
 class unibus {
+  private:
+    File core;
 
   public:
     pdp11::cons cons;
-
-  
+    pdp11::mmu mmu;
+ 
+ void init();
     uint16_t read8(uint32_t addr);
     uint16_t read16(uint32_t addr);
     void write8(uint32_t a, uint16_t v);
@@ -16,6 +20,5 @@ class unibus {
 };
 
 };
-    pdp11::mmu mmu;
 
 extern pdp11::unibus unibus;

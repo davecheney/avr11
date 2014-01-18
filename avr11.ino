@@ -20,8 +20,9 @@ void setup(void)
   fdevopen(serialWrite, NULL);
 
   Serial.println(F("Reset"));
+  rkinit(); // must call rkinit first to setup sd card
+  unibus.init();
   cpureset();
-  rkinit();
   Serial.println(F("Ready"));
 }
 
