@@ -17,5 +17,3 @@ class cons {
 };
 
 };
-
-extern pdp11::cons cons;

@@ -1,45 +1,29 @@
 #include <stdint.h>
+#include <SPI.h>
 #include <SD.h>
 #include "avr11.h"
 #include "rk05.h"
-#include "cons.h"
-#include "mmu.h"
-#include "cpu.h"
 #include "unibus.h"
+#include "cpu.h"
 
-// we need fundamental FILE definitions and printf declarations
-#include <stdio.h>
-
-// create a FILE structure to reference our UART output function
-
-static FILE uartout = {
-  0} 
-;
-
-// create a output function
-// This works because Serial.write, although of
-// type virtual, already exists.
-static int uart_putchar (char c, FILE *stream)
-{
-  Serial.write(c) ;
-  return 0 ;
+int serialWrite(char c, FILE *f) {
+    Serial.write(c);
+    return 0;
 }
+
+pdp11::unibus unibus;
 
 void setup(void)
 {
   // Start the UART
-  Serial.begin(9600) ;
+  Serial.begin(19200) ;
+  fdevopen(serialWrite, NULL);
 
-  // fill in the UART file descriptor with pointer to writer.
-  fdev_setup_stream (&uartout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
-
-  // The uart is the standard output device STDOUT.
-  stdout = &uartout ;
-
-  printf("setting up...\r\n"); 
+  Serial.println(F("Reset"));
+  rkinit(); // must call rkinit first to setup sd card
+  unibus.init();
   cpureset();
-  printf("setup done.\r\n");
-  rkinit();
+  Serial.println(F("Ready"));
 }
 
 void loop() {
@@ -49,13 +33,13 @@ void loop() {
   else {
     trapat(setjmp(trapbuf));
   }
+  unibus.cons.poll();
   rkstep();
 }
 
-void panic(char* msg) {
-  printf("panic %s\r\n", msg);
+void panic() {
   printstate();
-  while (true) delay(1);
+  while(true) delay(1);
 }
 
 /**

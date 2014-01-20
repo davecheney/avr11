@@ -13,15 +13,7 @@ extern uint16_t LKS;
 extern uint8_t curuser;
 extern uint8_t prevuser;
 
-extern uint32_t clkcounter;
-
 extern jmp_buf trapbuf;
-
-enum {
-  MEMSIZE = 2048,
-};
-
-extern uint16_t memory[MEMSIZE];
 
 enum {
   FLAGN = 8,

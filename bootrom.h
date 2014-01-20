@@ -1,4 +1,4 @@
-static uint16_t bootrom[29] = {
+uint16_t bootrom[] = {
   0042113,        /* "KD" */
   0012706, 02000, /* MOV #boot_start, SP */
   0012700, 0000000, /* MOV #unit, R0        ; unit number */

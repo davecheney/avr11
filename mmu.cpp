@@ -3,8 +3,6 @@
 #include "cpu.h" 
 #include "mmu.h"
 
-pdp11::mmu mmu;
-
 bool page::read() { 
   return pdr&2;
 }
@@ -89,18 +87,17 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
 }
 
 uint16_t pdp11::mmu::read16(int32_t a) {
-  uint8_t i = ((a & 017) >> 1);
   if ((a >= 0772300) && (a < 0772320)) {
-    return pages[i].pdr;
+    return pages[((a & 017) >> 1)].pdr;
   }
   if ((a >= 0772340) && (a < 0772360)) {
-    return pages[i].par;
+    return pages[((a & 017) >> 1)].par;
   }
   if ((a >= 0777600) && (a < 0777620)) {
-    return pages[i+8].pdr;
+    return pages[((a & 017) >> 1)+8].pdr;
   }
   if ((a >= 0777640) && (a < 0777660)) {
-    return pages[i+8].par;
+    return pages[((a & 017) >> 1)+8].par;
   }
   //trap{INTBUS, "invalid read from " + ostr(a, 6)})
   trap(INTBUS);

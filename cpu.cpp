@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include "avr11.h"
-#include "mmu.h"
+#include "unibus.h"
 #include "cpu.h"
-#include "cons.h"
+
 #include "bootrom.h"
 #include "rk05.h"
-#include "unibus.h"
+
 
 // signed integer registers
 int32_t R[8];
@@ -17,37 +17,32 @@ uint16_t SR0, SR2;
 uint16_t LKS;
 uint8_t curuser, prevuser;
 
-uint16_t memory[MEMSIZE];
-
 void cpureset(void) {
   LKS = 1 << 7;
   uint16_t i;
-  for (i = 0; i < 8; i++) {
-    memory[(01000>>1)+i] = consecho[i];
+    R[7] = 01000;
+  for (i = 0; i < 29; i++) {
+    unibus.write16(02000+(i*2), bootrom[i]);
   }
-  R[7] = 01000;
-  //for (i = 0; i < 29; i++) {
-  //  memory[01000+i] = bootrom[i];
-  //}
-  //R[7] = 02002;
-  cons.clearterminal();
-  // rkreset();
+  R[7] = 02002;
+  unibus.cons.clearterminal();
+  rkreset();
 }
 
 uint16_t read8(uint16_t a) {
-  return physread8(mmu.decode(a, false, curuser));
+  return unibus.read8(unibus.mmu.decode(a, false, curuser));
 }
 
 uint16_t read16(uint16_t a) {
-  return physread16(mmu.decode(a, false, curuser));
+  return unibus.read16(unibus.mmu.decode(a, false, curuser));
 }
 
 void write8(uint16_t a, uint16_t v) {
-  physwrite8(mmu.decode(a, true, curuser), v);
+  unibus.write8(unibus.mmu.decode(a, true, curuser), v);
 }
 
 void write16(uint16_t a, uint16_t v) {
-  physwrite16(mmu.decode(a, true, curuser), v);
+  unibus.write16(unibus.mmu.decode(a, true, curuser), v);
 }
 
 uint16_t memread(int32_t a, uint8_t l) {
@@ -191,10 +186,10 @@ void cpustep() {
   uint8_t d, s, l;
   int32_t ia, sa, da, val, val1, val2, o, instr;
   PC = (uint16_t)R[7];
-  ia = mmu.decode(PC, false, curuser);
+  ia = unibus.mmu.decode(PC, false, curuser);
   R[7] += 2;
 
-  instr = (int32_t)physread16(ia);
+  instr = (int32_t)unibus.read16(ia);
 
   if (PRINTSTATE) printstate();
 
@@ -346,8 +341,8 @@ void cpustep() {
   case 0004000: // JSR
     val = aget(d, l);
     if (val < 0) {
-      panic("JSR called on register");
-      break;
+      Serial.println(F("JSR called on register"));
+      panic();
     }
     push((uint16_t)R[s&7]);
     R[s&7] = R[7];
@@ -737,8 +732,8 @@ void cpustep() {
   case 0000100: // JMP
     val = aget(d, 2);
     if (val < 0) {
-      panic("JMP called with register dest");
-      break;
+      Serial.println(F("JMP called with register dest"));
+      panic();
     }
     R[7] = val;
     return;
@@ -777,10 +772,11 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic("invalid MFPI instruction");
+      Serial.println(F("invalid MFPI instruction"));
+      panic();
     } 
     else {
-      val = physread16(mmu.decode((uint16_t)da, false, prevuser));
+      val = unibus.read16(unibus.mmu.decode((uint16_t)da, false, prevuser));
     }
     push(val);
     PS &= 0xFFF0;
@@ -809,11 +805,11 @@ void cpustep() {
       }
     } 
     else if (da < 0) {
-      panic("invalid MTPI instrution");
+      Serial.println(F("invalid MTPI instrution")); panic();
     } 
     else {
-      sa = mmu.decode((uint16_t)da, true, prevuser);
-      physwrite16(sa, val);
+      sa = unibus.mmu.decode((uint16_t)da, true, prevuser);
+      unibus.write16(sa, val);
     }
     PS &= 0xFFF0;
     PS |= FLAGC;
@@ -924,8 +920,8 @@ void cpustep() {
     switchmode(false);
     push(prev);
     push(R[7]);
-    R[7] = memory[vec>>1];
-    PS = memory[(vec>>1)+1];
+    R[7] = unibus.read16(vec);
+    PS = unibus.read16(vec+2);
     if (prevuser) {
       PS |= (1 << 13) | (1 << 12);
     }
@@ -945,8 +941,8 @@ void cpustep() {
     if (curuser) {
       break;
     }
-    panic("HALT");
-    return;
+    Serial.println(F("HALT"));
+    panic();
   case 0000001: // WAIT
     if (curuser) {
       break;
@@ -963,7 +959,7 @@ void cpustep() {
       val &= 047;
       val |= PS & 0177730;
     }
-    physwrite16(0777776, val);
+    unibus.write16(0777776, val);
     return;
   case 0000005: // RESET
     if (curuser) {
@@ -983,7 +979,6 @@ void cpustep() {
 jmp_buf trapbuf;
 
 void trap(uint16_t vec) {
-  printf("trap: %06o\r\n", vec);
   longjmp(trapbuf, vec);
 }
 
@@ -1005,17 +1000,18 @@ void trapat(uint16_t vec) { // , msg string) {
    			panic(t)
    		}
    */
-  R[7] = memory[vec>>1];
-  PS = memory[(vec>>1)+1];
+  R[7] = unibus.read16(vec);
+  PS = unibus.read16(vec+2);
   if (prevuser) {
     PS |= (1 << 13) | (1 << 12);
   }
   // waiting = false;
 
   if (vec&1) {
-    panic("Thou darst calling trapat() with an odd vector number?");
+    Serial.println(F("Thou darst calling trapat() with an odd vector number?"));
+    panic();
   }
-  printf("trap %06d occured\r\n", vec);
+  printf("trap: %06o\r\n", vec);
   printstate();
 
   prev = PS;
@@ -1023,6 +1019,4 @@ void trapat(uint16_t vec) { // , msg string) {
   push(prev);
   push(R[7]);
 }
-
-
 
