@@ -190,7 +190,7 @@ void rkinit() {
   // Note that even if it's not used as the CS pin, the hardware SS pin 
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
   // or the SD library functions will not work. 
-  pinMode(4, OUTPUT);
+  pinMode(53, OUTPUT);
 
   pinMode(13, OUTPUT); // d13 is our sdcard access indicator
 

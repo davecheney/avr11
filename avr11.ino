@@ -1,10 +1,12 @@
 #include <stdint.h>
 #include <SPI.h>
 #include <SD.h>
+#include <SpiRAM.h>
 #include "avr11.h"
 #include "rk05.h"
 #include "unibus.h"
 #include "cpu.h"
+
 
 int serialWrite(char c, FILE *f) {
     Serial.write(c);
@@ -15,8 +17,14 @@ pdp11::unibus unibus;
 
 void setup(void)
 {
+  // setup all the SPI pins, ensure all the devices are deselected
+    pinMode(4, OUTPUT); digitalWrite(4, HIGH);
+  pinMode(6, OUTPUT); digitalWrite(6, HIGH);
+  pinMode(7, OUTPUT); digitalWrite(7, HIGH);
+  pinMode(10, OUTPUT); digitalWrite(10, HIGH);
+  pinMode(53, OUTPUT); digitalWrite(53, HIGH);
   // Start the UART
-  Serial.begin(115200) ;
+  Serial.begin(9600) ;
   fdevopen(serialWrite, NULL);
 
   Serial.println(F("Reset"));

@@ -1,25 +1,50 @@
 #include <Arduino.h>
+#include <SpiRAM.h>
 #include "avr11.h"
 #include "cpu.h"
 #include "unibus.h"
 #include "rk05.h"
 
+
 //uint16_t memory[MEMSIZE];
 
+SpiRAM bank0(6);
+SpiRAM bank1(7);
+
+const uint32_t ramSize = 0x1FFFF;           // 128K x 8 bit
+
+void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
+{
+  // block to 10
+  addr = addr / 10 * 10;
+  length = (length + 9)/10 * 10;
+
+  byte b = sRam.readByte(addr);
+  for (int i = 0; i < length; i++)
+  {
+    if (addr % 10 == 0)
+    {
+      Serial.println();
+      Serial.print(addr, HEX);
+      Serial.print(":\t");
+    }
+    Serial.print(b, HEX);
+    b = sRam.readByte(++addr);
+    Serial.print("\t");
+  }
+  Serial.println();
+}
+
 void pdp11::unibus::init() {
-  SD.remove("core");
-  core = SD.open("core", FILE_WRITE);
-  if (!core) {
-    Serial.println("failed to open core file"); 
-    abort();
-  }
-  Serial.print("zeroing core file, ");
-  uint8_t buf[1024];
-  uint16_t i;
-  for (i = 0; i < 128 * 2; i++) {
-    core.write(buf, 1024);
-  }
-  Serial.println("done");
+  Serial.print("zeroing ram, bank0");
+  bank0.fillBytes(0,0x0,ramSize);
+  Serial.print(", bank1");
+  bank1.fillBytes(0,0x0,ramSize);
+  Serial.println(", done.");
+    dumpsRam(bank0, 0,100);
+  dumpsRam(bank0, ramSize - 100, 100);
+    dumpsRam(bank1, 0,100);
+  dumpsRam(bank1, ramSize - 100, 100);
 }
 
 uint16_t pdp11::unibus::read8(uint32_t a) {
@@ -32,14 +57,20 @@ uint16_t pdp11::unibus::read8(uint32_t a) {
 void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
     if (a & 1) {
-      core.seek(a);
-      core.write(v & 0xff);
+      if (a < 0x20000) {
+        bank0.writeByte(a, v & 0xff);
+      } else {
+         bank1.writeByte(a, v &0xff);
+      }
       //memory[a >> 1] &= 0xFF;
       //memory[a >> 1] |= v & 0xFF << 8;
     }
     else {
-      core.seek(a);
-      core.write(v&0xff);
+      if (a < 0x20000) {
+        bank0.writeByte(a, v & 0xff);
+      } else {
+         bank1.writeByte(a, v &0xff);
+      }
       //memory[a >> 1] &= 0xFF00;
       //memory[a >> 1] |= v & 0xFF;
     }
@@ -61,11 +92,13 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     trap(INTBUS);
   }
   if (a < 0760000) {
-    core.seek(a);
-    core.write(v & 0xff) ;
-    if (core.write((v >> 8) & 0xff) == 0) {
-      printf("failed to write to core file");
-      panic(); }
+    if (a < 0x20000) {
+      bank0.writeByte(a, v &0xff);
+      bank0.writeByte(a+1, (v >> 8) & 0xff);
+    } else {
+       bank1.writeByte(a, v &0xff);
+      bank1.writeByte(a+1, (v >> 8) & 0xff);
+    }
     //memory[a >> 1] = v;
   }
   else if (a == 0777776) {
@@ -121,8 +154,15 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
     trap(INTBUS);
   }
   else if (a < 0760000 ) {
-    core.seek(a);
-    return core.read() | (core.read()<<8);
+    if (a < 0x20000) {
+      uint16_t v = bank0.readByte(a);
+      v |= bank0.readByte(a+1)<<8;
+      return v;
+    } else {
+      uint16_t v = bank1.readByte(a);
+      v |= bank1.readByte(a+1)<<8;
+      return v;
+    }
     //return memory[a >> 1];
   }
   else if (a == 0777546) {
