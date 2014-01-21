@@ -15,6 +15,7 @@ namespace pdp11 {
     page pages[16];
 
   public:
+    void reset();
     uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
     uint16_t read16(int32_t a);
     void write16(int32_t a, uint16_t v);

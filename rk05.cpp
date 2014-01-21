@@ -125,7 +125,7 @@ void rkstep() {
     running = false;
     rkready();
     if (RKCS&(1<<6)) {
-      //interrupt(INTRK, 5)
+      interrupt(INTRK, 5);
     }
   }
 }

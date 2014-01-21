@@ -306,7 +306,7 @@ void printstate() {
     PS&FLAGZ ? "Z" : " ",
     PS&FLAGV ? "V" : " ", 
     PS&FLAGC ? "C" : " ");
-  printf("]\tinstr %06o: %06o\t ", PC, unibus.read16(unibus.mmu.decode(PC, false, curuser)));
+  printf("]  instr %06o: %06o\t ", PC, unibus.read16(unibus.mmu.decode(PC, false, curuser)));
   #ifdef __AVR_ATmega2560__
   disasm(unibus.mmu.decode(PC, false, curuser));
   Serial.println("");

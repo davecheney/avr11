@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "avr11.h"
 #include "cons.h"
+#include "cpu.h"
 
 void pdp11::cons::clearterminal() {
   TKS = 0;
@@ -25,7 +26,7 @@ void pdp11::cons::addchar(char c) {
   }
   TKS |= 0x80;
   if (TKS & (1 << 6)) {
-    // interrupt(INTTTYIN, 4);
+    interrupt(INTTTYIN, 4);
   }
 }
 
@@ -37,7 +38,7 @@ void pdp11::cons::poll() {
     Serial.write(TPB & 0x7f);
     TPS |= 0x80;
     if (TPS & (1 << 6)) {
-      //interrupt(INTTTYOUT, 4);
+      interrupt(INTTTYOUT, 4);
     }
   }
 }

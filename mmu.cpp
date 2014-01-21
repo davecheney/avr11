@@ -1,17 +1,17 @@
 #include <Arduino.h>
 #include "avr11.h"
-#include "cpu.h" 
+#include "cpu.h"
 #include "mmu.h"
 
-bool page::read() { 
-  return pdr&2;
+bool page::read() {
+  return pdr & 2;
 }
 
-bool page::write() { 
-  return pdr&6; 
+bool page::write() {
+  return pdr & 6;
 }
-bool page::ed() { 
-  return pdr&8; 
+bool page::ed() {
+  return pdr & 8;
 }
 
 uint16_t page::addr() {
@@ -19,41 +19,44 @@ uint16_t page::addr() {
 }
 
 uint16_t page::len() {
-  return (pdr >> 8) &0x7f;
+  return (pdr >> 8) & 0x7f;
 }
 
-page createpage(uint16_t par, uint16_t pdr) {
-  page p = { 
-    par, pdr     };
-  return p;
+bool mmuDisabled() {
+  return !(SR0 & 1);
+}
+
+void pdp11::mmu::reset() {
+  uint8_t i;
+  for (i = 0; i < 16; i++) {
+    pages[i].par = 0;
+    pages[i].pdr = 0;
+  }
 }
 
 uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
-  page p;
-  uint32_t aa, block, disp;
-  if (!(SR0&1)) {
-    aa = (uint32_t)a;
+  if (mmuDisabled()) {
+    uint32_t aa = (uint32_t)a;
     if (aa >= 0170000) {
       aa += 0600000;
-    } 
+    }
     return aa;
   }
+  uint8_t offset = a >> 13;
   if (user) {
-    p = pages[(a>>13)+8];
-  } 
-  else {
-    p = pages[(a >> 13)];
+    offset += 8;
   }
+  page p = pages[offset];
 
   if (w && !p.write()) {
     SR0 = (1 << 13) | 1;
-    SR0 |= a >> 12 & ~1;
+    SR0 |= (a >> 12) & ~1;
     if (user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
 
-    //panic(trap{INTFAULT, "write to read-only page " + ostr(a, 6)})
+    printf("write to read-only page %06o\r\n", a);
     trap(INTFAULT);
   }
   if (!p.read()) {
@@ -63,11 +66,11 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    //panic(trap{INTFAULT, "read from no-access page " + ostr(a, 6)})
+    printf("read from no-access page %06o\r\n", a);
     trap(INTFAULT);
   }
-  block = a >> 6 & 0177;
-  disp = a & 077;
+  uint32_t block = a >> 6 & 0177;
+  uint32_t disp = a & 077;
   if (((p.ed() && (block < p.len())) || !(p.ed() && (block > p.len())))) {
     //if(p.ed ? (block < p.len) : (block > p.len)) {
     SR0 = (1 << 14) | 1;
@@ -76,14 +79,14 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    // panic(trap{INTFAULT, "page length exceeded, address " + ostr(a, 6) + " (block " + ostr(block, 3) + ") is beyond length " + ostr(p.len, 3)})
+    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, p.len());
     trap(INTFAULT);
   }
   if (w) {
     // watch out !
-    p.pdr |= 1 << 6;
+    //p.pdr |= 1 << 6;
   }
-  return ((block+p.addr()) << 6) + disp;
+  return ((block + p.addr()) << 6) + disp;
 }
 
 uint16_t pdp11::mmu::read16(int32_t a) {
@@ -94,34 +97,34 @@ uint16_t pdp11::mmu::read16(int32_t a) {
     return pages[((a & 017) >> 1)].par;
   }
   if ((a >= 0777600) && (a < 0777620)) {
-    return pages[((a & 017) >> 1)+8].pdr;
+    return pages[((a & 017) >> 1) + 8].pdr;
   }
   if ((a >= 0777640) && (a < 0777660)) {
-    return pages[((a & 017) >> 1)+8].par;
+    return pages[((a & 017) >> 1) + 8].par;
   }
-  //trap{INTBUS, "invalid read from " + ostr(a, 6)})
+  printf("mmu::read16 invalid read from %06o\r\n", a);
   trap(INTBUS);
 }
 
 void pdp11::mmu::write16(int32_t a, uint16_t v) {
   uint8_t i = ((a & 017) >> 1);
   if ((a >= 0772300) && (a < 0772320)) {
-    pages[i] = createpage(pages[i].par, v);
+    pages[i].pdr = v;
     return;
   }
   if ((a >= 0772340) && (a < 0772360)) {
-    pages[i] = createpage(v, pages[i].pdr);
+    pages[i].par = v;
     return;
   }
   if ((a >= 0777600) && (a < 0777620)) {
-    pages[i+8] = createpage(pages[i+8].par, v);
+    pages[i + 8].pdr = v;
     return;
   }
   if ((a >= 0777640) && (a < 0777660)) {
-    pages[i+8] = createpage(v, pages[i+8].pdr);
+    pages[i + 8].par = v;
     return;
   }
-  //trap{INTBUS, "write to invalid address " + ostr(a, 6)  }
+  printf("mmu::write16 write to invalid address %06o\r\n", a);
   trap(INTBUS);
 }
 
