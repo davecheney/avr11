@@ -49,15 +49,11 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     }
     return aa;
   }
-  //printf("decode: %06o\r\n", a);
   uint8_t offset = a >> 13;
   if (user) {
     offset += 8;
   }
-  //dumppages();
-  page p = pages[offset];
-
-  if (w && !p.write()) {
+  if (w && !pages[offset].write()) {
     SR0 = (1 << 13) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -68,7 +64,7 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("write to read-only page %06o\r\n", a);
     trap(INTFAULT);
   }
-  if (!p.read()) {
+  if (!pages[offset].read()) {
     SR0 = (1 << 15) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -78,9 +74,9 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("read from no-access page %06o\r\n", a);
     trap(INTFAULT);
   }
-  uint32_t block = (a >> 6) & 0177;
+  uint16_t block = (a >> 6) & 0177;
   uint32_t disp = a & 077;
-  if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
+  if ((pages[offset].ed() && (block < pages[offset].len())) || (!pages[offset].ed() && (block > pages[offset].len()))) {
     //if(p.ed ? (block < p.len) : (block > p.len)) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;
@@ -88,14 +84,21 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, p.len());
+    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, pages[offset].len());
     trap(INTFAULT);
   }
   if (w) {
     // watch out !
     //p.pdr |= 1 << 6;
   }
-  return ((block + p.addr()) << 6) + disp;
+  // danger, this can be cast to a uint16_t if you aren't careful
+  uint32_t aa = (((uint32_t)block) + ((uint32_t)(pages[offset].addr())) << 6) + disp;
+  if (DEBUG_MMU) {
+                Serial.print("decode: slow "); Serial.print(a, OCT); Serial.print(" -> "); Serial.println(aa, OCT);
+                //dumppages();
+        }
+
+  return aa;
 }
 
 uint16_t pdp11::mmu::read16(int32_t a) {

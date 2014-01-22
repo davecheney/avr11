@@ -17,7 +17,7 @@ void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
 {
   // block to 10
   addr = addr / 10 * 10;
-  length = (length + 9)/10 * 10;
+  length = (length + 9) / 10 * 10;
 
   byte b = sRam.readByte(addr);
   for (int i = 0; i < length; i++)
@@ -37,9 +37,9 @@ void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
 
 void pdp11::unibus::init() {
   Serial.print("zeroing SRAM, bank0");
-  bank0.fillBytes(0,0x0,ramSize);
+  bank0.fillBytes(0, 0x0, ramSize);
   Serial.print(", bank1");
-  bank1.fillBytes(0,0x0,ramSize);
+  bank1.fillBytes(0, 0x0, ramSize);
   Serial.println(", done.");
   //  dumpsRam(bank0, 0,100);
   //dumpsRam(bank0, ramSize - 100, 100);
@@ -60,7 +60,7 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
       if (a < 0x20000) {
         bank0.writeByte(a, v & 0xff);
       } else {
-         bank1.writeByte(a, v &0xff);
+        bank1.writeByte(a, v & 0xff);
       }
       //memory[a >> 1] &= 0xFF;
       //memory[a >> 1] |= v & 0xFF << 8;
@@ -69,7 +69,7 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
       if (a < 0x20000) {
         bank0.writeByte(a, v & 0xff);
       } else {
-         bank1.writeByte(a, v &0xff);
+        bank1.writeByte(a, v & 0xff);
       }
       //memory[a >> 1] &= 0xFF00;
       //memory[a >> 1] |= v & 0xFF;
@@ -85,6 +85,18 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   }
 }
 
+void pdp11::unibus::writeSRAM(uint32_t a, uint16_t v) {
+  if (a < 0x20000) {
+    //bank0.writeByte(a, v &0xff);
+    //bank0.writeByte(a+1, (v >> 8) & 0xff);
+    bank0.writeBuffer(a, (char*)&v, 2);
+    return;
+  }
+  //bank1.writeByte(a, v &0xff);
+  //bank1.writeByte(a+1, (v >> 8) & 0xff);
+  bank1.writeBuffer(a, (char*)&v, 2);
+}
+
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
   //printf("unibus::write16: %06o\t", a); printf("%06o\r\n", v);
   if (a % 1) {
@@ -92,13 +104,8 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     trap(INTBUS);
   }
   if (a < 0760000) {
-    if (a < 0x20000) {
-      bank0.writeByte(a, v &0xff);
-      bank0.writeByte(a+1, (v >> 8) & 0xff);
-    } else {
-       bank1.writeByte(a, v &0xff);
-      bank1.writeByte(a+1, (v >> 8) & 0xff);
-    }
+    writeSRAM(a, v);
+    return;
     //memory[a >> 1] = v;
   }
   else if (a == 0777776) {
@@ -142,54 +149,70 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     mmu.write16(a, v);
   }
   else {
-    //panic(trap{INTBUS, "write to invalid address " + ostr(a, 6)})
+    Serial.print("unibus: write to invalid address"); Serial.println(a, OCT);
     trap(INTBUS);
   }
+}
+
+uint16_t pdp11::unibus::readSRAM(uint32_t a) {
+  if (a < 0x20000) {
+    uint16_t v;
+    bank0.readBuffer(a, (char*)&v, 2);
+    //uint16_t v = bank0.readByte(a);
+    //v |= bank0.readByte(a+1)<<8;
+    return v;
+  }
+  uint16_t v;
+  bank1.readBuffer(a, (char*)&v, 2);
+  //uint16_t v = bank1.readByte(a);
+  //v |= bank1.readByte(a+1)<<8;
+  return v;
 }
 
 uint16_t pdp11::unibus::read16(uint32_t a) {
   //printf("unibus::read16: %06o\n", a);
   if (a & 1) {
-    // panic(trap{INTBUS, "read from odd address " + ostr(a, 6)})
+    Serial.print("unibus: read from odd address "); Serial.println(a, OCT);
     trap(INTBUS);
   }
-  else if (a < 0760000 ) {
-    if (a < 0x20000) {
-      uint16_t v = bank0.readByte(a);
-      v |= bank0.readByte(a+1)<<8;
-      return v;
-    } else {
-      uint16_t v = bank1.readByte(a);
-      v |= bank1.readByte(a+1)<<8;
-      return v;
-    }
+  
+  if (a < 0760000 ) {
+    return readSRAM(a);
     //return memory[a >> 1];
   }
-  else if (a == 0777546) {
+  
+  if (a == 0777546) {
     return LKS;
   }
-  else if (a == 0777570) {
+  
+  if (a == 0777570) {
     return 0173030;
   }
-  else if (a == 0777572) {
+  
+  if (a == 0777572) {
     return SR0;
   }
-  else if (a == 0777576) {
+  
+  if (a == 0777576) {
     return SR2;
   }
-  else if (a == 0777776) {
+  
+  if (a == 0777776) {
     return PS;
   }
-  else if ((a & 0777770) == 0777560) {
+  
+  if ((a & 0777770) == 0777560) {
     return cons.read16(a);
   }
-  else if ((a & 0777760) == 0777400) {
+  
+  if ((a & 0777760) == 0777400) {
     return rkread16(a);
   }
-  else if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
-    mmu.read16(a);
+  
+  if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
+    return mmu.read16(a);
   }
-  //panic(trap{INTBUS, "read from invalid address " + ostr(a, 6)})
+  Serial.print("unibus: read from invalid address "); Serial.println(a, OCT);
   trap(INTBUS);
 
 }

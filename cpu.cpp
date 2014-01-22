@@ -30,19 +30,23 @@ void cpureset(void) {
 }
 
 uint16_t read8(uint16_t a) {
-  return unibus.read8(unibus.mmu.decode(a, false, curuser));
+  uint32_t aa = unibus.mmu.decode(a, false, curuser);
+  return unibus.read8(aa);
 }
 
 uint16_t read16(uint16_t a) {
-  return unibus.read16(unibus.mmu.decode(a, false, curuser));
+  uint32_t aa = unibus.mmu.decode(a, false, curuser);
+  return unibus.read16(aa);
 }
 
 void write8(uint16_t a, uint16_t v) {
-  unibus.write8(unibus.mmu.decode(a, true, curuser), v);
+  uint32_t aa = unibus.mmu.decode(a, true, curuser);
+  unibus.write8(aa, v);
 }
 
 void write16(uint16_t a, uint16_t v) {
-  unibus.write16(unibus.mmu.decode(a, true, curuser), v);
+  int32_t aa = unibus.mmu.decode(a, true, curuser);
+  unibus.write16(aa, v);
 }
 
 uint16_t memread(int32_t a, uint8_t l) {
@@ -127,6 +131,7 @@ int32_t aget(uint8_t v, uint8_t l) {
   }
   addr &= 0xFFFF;
   if (v & 010) {
+    //printf("read ** %06o\r\n", addr);
     addr = read16(addr);
   }
   return addr;
@@ -192,7 +197,7 @@ void cpustep() {
   instr = (int32_t)unibus.read16(ia);
 
   if (PRINTSTATE) printstate();
-
+  
   d = instr & 077;
   s = (instr & 07700) >> 6;
   l = 2 - (instr >> 15);

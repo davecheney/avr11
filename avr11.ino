@@ -24,7 +24,7 @@ void setup(void)
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
   // Start the UART
-  Serial.begin(9600) ;
+  Serial.begin(115200) ;
   fdevopen(serialWrite, NULL);
 
   Serial.println(F("Reset"));
