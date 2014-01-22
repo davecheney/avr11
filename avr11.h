@@ -1,12 +1,3 @@
-enum {
-  MEMSIZE = 2048,
-};
-
-struct intr { 
-  int32_t vec; 
-  int32_t pri;  
-};
-
 // traps
 enum {
   INTBUS    = 0004,

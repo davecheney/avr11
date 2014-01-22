@@ -1,6 +1,17 @@
 // this is all kinds of wrong
 #include <setjmp.h>
 
+namespace pdp11 {
+  struct intr {
+  uint16_t vec;
+  uint16_t pri;
+  };
+};
+
+#define ITABN 8
+
+extern pdp11::intr itab[ITABN];
+
 extern int32_t R[8];
 
 extern uint16_t PC;
@@ -26,4 +37,6 @@ void cpustep();
 void cpureset(void);
 void switchmode(bool newm);
 void trapat(uint16_t vec);
+void interrupt(uint16_t vec, uint16_t pri);
+void handleinterrupt(uint16_t vec);
 

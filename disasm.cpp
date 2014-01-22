@@ -200,14 +200,14 @@ void disasmaddr(uint16_t m, uint32_t a) {
     case 027:
       a += 2;
       printf("$%06o", unibus.read16(a));
-      break;
+      return;
     case 037:
       a += 2;
       printf("*%06o", unibus.read16(a)); 
       return;
     case 067:
       a += 2;
-      printf("*%06o", (a+2+(unibus.read16(a))&0xFFFF)); 
+      printf("*%06o", (a+2+(unibus.read16(a)))&0xFFFF); 
       return;
     case 077:
       printf("**%06o", (a+2+(unibus.read16(a)))&0xFFFF); 
@@ -306,7 +306,7 @@ void printstate() {
     PS&FLAGZ ? "Z" : " ",
     PS&FLAGV ? "V" : " ", 
     PS&FLAGC ? "C" : " ");
-  printf("]\tinstr %06o: %06o\t ", PC, unibus.read16(unibus.mmu.decode(PC, false, curuser)));
+  printf("]  instr %06o: %06o\t ", PC, unibus.read16(unibus.mmu.decode(PC, false, curuser)));
   #ifdef __AVR_ATmega2560__
   disasm(unibus.mmu.decode(PC, false, curuser));
   Serial.println("");
