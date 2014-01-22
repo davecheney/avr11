@@ -14,6 +14,7 @@ namespace pdp11 {
   class mmu {
     page pages[16];
 
+    void dumppages();
   public:
     void reset();
     uint32_t decode(uint16_t a, uint8_t w, uint8_t user);

@@ -34,6 +34,13 @@ void pdp11::mmu::reset() {
   }
 }
 
+void pdp11::mmu::dumppages() {
+  uint8_t i;
+  for (i = 0; i < 16; i++) {
+     printf("%0x: %06o %06o\r\n", i, pages[i].par, pages[i].pdr);
+  }
+} 
+
 uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   if (mmuDisabled()) {
     uint32_t aa = (uint32_t)a;
@@ -42,10 +49,12 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     }
     return aa;
   }
+  //printf("decode: %06o\r\n", a);
   uint8_t offset = a >> 13;
   if (user) {
     offset += 8;
   }
+  //dumppages();
   page p = pages[offset];
 
   if (w && !p.write()) {
@@ -69,9 +78,9 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("read from no-access page %06o\r\n", a);
     trap(INTFAULT);
   }
-  uint32_t block = a >> 6 & 0177;
+  uint32_t block = (a >> 6) & 0177;
   uint32_t disp = a & 077;
-  if (((p.ed() && (block < p.len())) || !(p.ed() && (block > p.len())))) {
+  if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
     //if(p.ed ? (block < p.len) : (block > p.len)) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;

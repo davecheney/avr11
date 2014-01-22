@@ -1,7 +1,3 @@
-enum {
-  MEMSIZE = 2048,
-};
-
 // traps
 enum {
   INTBUS    = 0004,
