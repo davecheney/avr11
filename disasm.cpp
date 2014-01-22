@@ -200,7 +200,7 @@ void disasmaddr(uint16_t m, uint32_t a) {
     case 027:
       a += 2;
       printf("$%06o", unibus.read16(a));
-      break;
+      return;
     case 037:
       a += 2;
       printf("*%06o", unibus.read16(a)); 

@@ -36,15 +36,15 @@ void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
 }
 
 void pdp11::unibus::init() {
-  Serial.print("zeroing ram, bank0");
+  Serial.print("zeroing SRAM, bank0");
   bank0.fillBytes(0,0x0,ramSize);
   Serial.print(", bank1");
   bank1.fillBytes(0,0x0,ramSize);
   Serial.println(", done.");
-    dumpsRam(bank0, 0,100);
-  dumpsRam(bank0, ramSize - 100, 100);
-    dumpsRam(bank1, 0,100);
-  dumpsRam(bank1, ramSize - 100, 100);
+  //  dumpsRam(bank0, 0,100);
+  //dumpsRam(bank0, ramSize - 100, 100);
+  //  dumpsRam(bank1, 0,100);
+  //dumpsRam(bank1, ramSize - 100, 100);
 }
 
 uint16_t pdp11::unibus::read8(uint32_t a) {
