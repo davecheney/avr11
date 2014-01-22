@@ -149,7 +149,7 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     mmu.write16(a, v);
   }
   else {
-    Serial.print("unibus: write to invalid address"); Serial.println(a, OCT);
+    Serial.print("unibus: write to invalid address "); Serial.println(a, OCT);
     trap(INTBUS);
   }
 }

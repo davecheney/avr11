@@ -68,6 +68,7 @@ void rkstep() {
     panic();
   }
 
+/**
   Serial.print("rkstep: RKBA: "); 
   Serial.print(RKBA, DEC);
   Serial.print(" RKWC: "); 
@@ -76,7 +77,9 @@ void rkstep() {
   Serial.print(cylinder, DEC);
   Serial.print(" sector: "); 
   Serial.print(sector, DEC); 
-  Serial.print("\r\n");
+  Serial.print(" write: ");
+  Serial.println(w ? "true" : "false");
+  */
 
   if (drive != 0) {
     rkerror(RKNXD);
@@ -98,9 +101,9 @@ void rkstep() {
   uint16_t val;
   for (i = 0; i < 256 && RKWC != 0; i++) {
     if (w) {
-      //val = memory[r.RKBA>>1]
-      //r.rkdisk[pos] = byte(val & 0xFF)
-      //r.rkdisk[pos+1] = byte((val >> 8) & 0xFF)
+      val = unibus.read16(RKBA);
+      rkdata.write(val & 0xFF);
+      rkdata.write((val >> 8) & 0xFF);
     } 
     else {
       unibus.write16(RKBA, rkdata.read() | (rkdata.read()<<8)); 
@@ -200,7 +203,7 @@ void rkinit() {
   }
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  rkdata = SD.open("UNIXV6.RK0");
+  rkdata = SD.open("UNIXV6.RK0", FILE_WRITE);
 
   // if the file is available, write to it:
   if (!rkdata) {

@@ -1026,6 +1026,7 @@ void trapat(uint16_t vec) { // , msg string) {
 }
 
 void interrupt(uint16_t vec, uint16_t pri) {
+  //Serial.print("interrupt: "); Serial.print(vec, OCT); Serial.print(", "); Serial.println(pri, OCT);
   if (vec & 1) {
     Serial.println(F("Thou darst calling interrupt() with an odd vector number?"));
     panic();
@@ -1059,15 +1060,16 @@ void interrupt(uint16_t vec, uint16_t pri) {
 }
 
 void handleinterrupt(uint16_t vec) {
-  printf("IRQ: %06o\r\n", vec);
-  if (setjmp(trapbuf) == 0) {
+  //Serial.print("handle: "); Serial.println(vec, OCT);
+  uint16_t vv = setjmp(trapbuf);
+  if (vv == 0) {
 
     uint16_t prev = PS;
     switchmode(false);
     push(prev);
     push(R[7]);
   } else {
-    trapat(setjmp(trapbuf));
+    trapat(vv);
   }
 
   R[7] = unibus.read16(vec);

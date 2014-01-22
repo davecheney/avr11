@@ -34,9 +34,12 @@ void setup(void)
   Serial.println(F("Ready"));
 }
 
+uint16_t clkcounter;
+
 void loop() {
-  if (setjmp(trapbuf) == 0) {
-            if ((itab[0].vec > 0) && (itab[0].pri >= ((PS)>>5)&7)) {
+  uint16_t vec = setjmp(trapbuf);
+  if (vec == 0) {
+            if ((itab[0].vec > 0) && (itab[0].pri >= ((PS>>5)&7))) {
                 handleinterrupt(itab[0].vec);
                 uint8_t i;
                 for (i = 0; i < ITABN-1; i++) {
@@ -47,9 +50,18 @@ void loop() {
         }
 
     cpustep();
+    clkcounter++;
+        if (clkcounter > 39999) {
+                clkcounter = 0;
+                LKS |= (1 << 7);
+                if (LKS&(1<<6)) {
+                        interrupt(INTCLOCK, 6);
+                }
+        }
+
   } 
   else {
-    trapat(setjmp(trapbuf));
+    trapat(vec);
   }
   unibus.cons.poll();
   rkstep();
