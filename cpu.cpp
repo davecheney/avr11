@@ -30,23 +30,19 @@ void cpureset(void) {
 }
 
 uint16_t read8(uint16_t a) {
-  uint32_t aa = unibus.mmu.decode(a, false, curuser);
-  return unibus.read8(aa);
+  return unibus.read8(unibus.mmu.decode(a, false, curuser));
 }
 
 uint16_t read16(uint16_t a) {
-  uint32_t aa = unibus.mmu.decode(a, false, curuser);
-  return unibus.read16(aa);
+  return unibus.read16(unibus.mmu.decode(a, false, curuser));
 }
 
 void write8(uint16_t a, uint16_t v) {
-  uint32_t aa = unibus.mmu.decode(a, true, curuser);
-  unibus.write8(aa, v);
+  unibus.write8(unibus.mmu.decode(a, true, curuser), v);
 }
 
 void write16(uint16_t a, uint16_t v) {
-  int32_t aa = unibus.mmu.decode(a, true, curuser);
-  unibus.write16(aa, v);
+  unibus.write16(unibus.mmu.decode(a, true, curuser), v);
 }
 
 uint16_t memread(int32_t a, uint8_t l) {
@@ -187,14 +183,12 @@ uint16_t xor16(uint16_t x, uint16_t y) {
 }
 
 void cpustep() {
-  uint16_t max, maxp, msb, prev;
-  uint8_t d, s, l;
-  int32_t ia, sa, da, val, val1, val2, o, instr;
-  PC = (uint16_t)R[7];
-  ia = unibus.mmu.decode(PC, false, curuser);
+  uint16_t max, maxp, msb, prev, instr;
+  uint8_t d, s, l, o;
+  int32_t sa, da, val, val1, val2;
+  PC = R[7];
+  instr = unibus.read16(unibus.mmu.decode(PC, false, curuser));
   R[7] += 2;
-
-  instr = (int32_t)unibus.read16(ia);
 
   if (PRINTSTATE) printstate();
   
@@ -970,7 +964,7 @@ void cpustep() {
       if (curuser) {
         return;
       }
-      //clearterminal()
+      unibus.cons.clearterminal();
       rkreset();
       return;
     case 0170011: // SETD ; not needed by UNIX, but used; therefore ignored

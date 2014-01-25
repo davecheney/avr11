@@ -26,6 +26,9 @@ void setup(void)
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
+  
+//   SPI.begin();
+//   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   Serial.println(F("Reset"));
   rkinit(); // must call rkinit first to setup sd card
@@ -56,24 +59,24 @@ void loop0() {
       }
       itab[ITABN - 1].vec = 0;
       itab[ITABN - 1].pri = 0;
-      continue;
-    }
-    cpustep();
-    if (INSTR_TIMING) {
-      if (++instcounter == 0) {
-        Serial.println(millis());
+    } else {
+      cpustep();
+      if (INSTR_TIMING) {
+        if (++instcounter == 0) {
+          Serial.println(millis());
+        }
       }
-    }
-    clkcounter++;
-    if (clkcounter > 39999) {
-      clkcounter = 0;
-      LKS |= (1 << 7);
-      if (LKS & (1 << 6)) {
-        interrupt(INTCLOCK, 6);
+      clkcounter++;
+      if (clkcounter > 39999) {
+        clkcounter = 0;
+        LKS |= (1 << 7);
+        if (LKS & (1 << 6)) {
+          interrupt(INTCLOCK, 6);
+        }
       }
+      unibus.cons.poll();
+      rkstep();
     }
-    unibus.cons.poll();
-    rkstep();
   }
 }
 

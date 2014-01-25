@@ -22,10 +22,6 @@ uint16_t page::len() {
   return (pdr >> 8) & 0x7f;
 }
 
-bool mmuDisabled() {
-  return !(SR0 & 1);
-}
-
 void pdp11::mmu::reset() {
   uint8_t i;
   for (i = 0; i < 16; i++) {
@@ -42,12 +38,8 @@ void pdp11::mmu::dumppages() {
 }
 
 uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
-  if (mmuDisabled()) {
-    uint32_t aa = (uint32_t)a;
-    if (aa >= 0170000) {
-      aa += 0600000;
-    }
-    return aa;
+  if (((uint8_t)SR0 & 1) == 0) {
+    return a > 0167777 ? ((uint32_t)a) + 0600000 : a;
   }
   page p = pages[user ? (a >> 13) + 8 : (a >> 13)];
   if (w && !p.write()) {

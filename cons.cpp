@@ -39,7 +39,6 @@ void pdp11::cons::poll() {
 
   if ((TPS & 0x80) == 0) {
     if (++count > 32) {
-      count = 0;
       Serial.write(TPB & 0x7f);
       TPS |= 0x80;
       if (TPS & (1 << 6)) {
@@ -93,6 +92,7 @@ void pdp11::cons::write16(uint32_t a, uint16_t v) {
     case 0777566:
       TPB = v & 0xff;
       TPS &= 0xff7f;
+      count = 0;
       break;
     default:
       Serial.println(F("conswrite16: write to invalid address")); // " + ostr(a, 6))

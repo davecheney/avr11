@@ -23,7 +23,3 @@ namespace pdp11 {
   };
 
 };
-
-enum {
-  DEBUG_MMU = false
-};

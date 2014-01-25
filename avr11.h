@@ -15,6 +15,7 @@ enum {
   PRINTSTATE = false,
   INSTR_TIMING = true,
   DEBUG_RK05 = true,
+  DEBUG_MMU = false,
 };
 
 void printstate();
