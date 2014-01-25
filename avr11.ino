@@ -24,7 +24,7 @@ void setup(void)
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
   // Start the UART
-  Serial.begin(115200) ;
+  Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
 
   Serial.println(F("Reset"));
@@ -35,6 +35,7 @@ void setup(void)
 }
 
 uint16_t clkcounter;
+uint16_t instcounter;
 
 void loop() {
   uint16_t vec = setjmp(trapbuf);
@@ -50,6 +51,11 @@ void loop() {
         }
 
     cpustep();
+    if (INSTR_TIMING) {
+      if (++instcounter == 0) {
+          Serial.println(millis());
+      }
+    }
     clkcounter++;
         if (clkcounter > 39999) {
                 clkcounter = 0;

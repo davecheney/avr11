@@ -12,7 +12,8 @@ enum {
 };
 
 enum {
-  PRINTSTATE = false
+  PRINTSTATE = false,
+  INSTR_TIMING = true
 };
 
 void printstate();
@@ -20,3 +21,5 @@ void panic();
 void disasm(uint32_t ia);
 
 void trap(uint16_t num);
+
+
