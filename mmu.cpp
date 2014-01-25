@@ -37,9 +37,9 @@ void pdp11::mmu::reset() {
 void pdp11::mmu::dumppages() {
   uint8_t i;
   for (i = 0; i < 16; i++) {
-     printf("%0x: %06o %06o\r\n", i, pages[i].par, pages[i].pdr);
+    printf("%0x: %06o %06o\r\n", i, pages[i].par, pages[i].pdr);
   }
-} 
+}
 
 uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   if (mmuDisabled()) {
@@ -49,11 +49,8 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     }
     return aa;
   }
-  uint8_t offset = a >> 13;
-  if (user) {
-    offset += 8;
-  }
-  if (w && !pages[offset].write()) {
+  page p = pages[user ? (a >> 13) + 8 : (a >> 13)];
+  if (w && !p.write()) {
     SR0 = (1 << 13) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -64,7 +61,7 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("write to read-only page %06o\r\n", a);
     trap(INTFAULT);
   }
-  if (!pages[offset].read()) {
+  if (!p.read()) {
     SR0 = (1 << 15) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -74,17 +71,17 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("read from no-access page %06o\r\n", a);
     trap(INTFAULT);
   }
-  uint16_t block = (a >> 6) & 0177;
-  uint32_t disp = a & 077;
-  if ((pages[offset].ed() && (block < pages[offset].len())) || (!pages[offset].ed() && (block > pages[offset].len()))) {
-    //if(p.ed ? (block < p.len) : (block > p.len)) {
+  uint8_t block = (a >> 6) & 0177;
+  uint8_t disp = a & 077;
+  // if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
+  if (p.ed() ? (block < p.len()) : (block > p.len())) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, pages[offset].len());
+    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, p.len());
     trap(INTFAULT);
   }
   if (w) {
@@ -92,11 +89,14 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     //p.pdr |= 1 << 6;
   }
   // danger, this can be cast to a uint16_t if you aren't careful
-  uint32_t aa = (((uint32_t)block) + ((uint32_t)(pages[offset].addr())) << 6) + disp;
+  //uint32_t aa = block + p.addr();
+  //aa = aa << 6;
+  //aa += disp;
+  uint32_t aa = (((uint32_t)block) + ((uint32_t)(p.addr())) << 6) + disp;
   if (DEBUG_MMU) {
-                Serial.print("decode: slow "); Serial.print(a, OCT); Serial.print(" -> "); Serial.println(aa, OCT);
-                //dumppages();
-        }
+    Serial.print("decode: slow "); Serial.print(a, OCT); Serial.print(" -> "); Serial.println(aa, OCT);
+    //dumppages();
+  }
 
   return aa;
 }

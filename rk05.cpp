@@ -103,12 +103,10 @@ void rkstep() {
       val = unibus.read16(RKBA);
       rkdata.write(val & 0xFF);
       rkdata.write((val >> 8) & 0xFF);
-    } 
-    else {
+    } else {
       unibus.write16(RKBA, rkdata.read() | (rkdata.read()<<8)); 
     }
     RKBA += 2;
-    pos += 2;
     RKWC = (RKWC + 1) & 0xFFFF;
   }
   sector++;
