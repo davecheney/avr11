@@ -13,7 +13,8 @@ enum {
 
 enum {
   PRINTSTATE = false,
-  INSTR_TIMING = true
+  INSTR_TIMING = true,
+  DEBUG_RK05 = true,
 };
 
 void printstate();

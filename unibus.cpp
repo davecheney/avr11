@@ -85,18 +85,6 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   }
 }
 
-void pdp11::unibus::writeSRAM(uint32_t a, uint16_t v) {
-  if (a < 0x20000) {
-    //bank0.writeByte(a, v &0xff);
-    //bank0.writeByte(a+1, (v >> 8) & 0xff);
-    bank0.writeBuffer(a, (char*)&v, 2);
-    return;
-  }
-  //bank1.writeByte(a, v &0xff);
-  //bank1.writeByte(a+1, (v >> 8) & 0xff);
-  bank1.writeBuffer(a, (char*)&v, 2);
-}
-
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
   //printf("unibus::write16: %06o\t", a); printf("%06o\r\n", v);
   if (a % 1) {
@@ -104,9 +92,8 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     trap(INTBUS);
   }
   if (a < 0760000) {
-    writeSRAM(a, v);
+    a < 0x20000 ? bank0.writeBuffer(a, (char*)&v, 2) : bank1.writeBuffer(a, (char*)&v, 2);
     return;
-    //memory[a >> 1] = v;
   }
   else if (a == 0777776) {
     switch (v >> 14) {
@@ -154,21 +141,6 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
   }
 }
 
-uint16_t pdp11::unibus::readSRAM(uint32_t a) {
-  if (a < 0x20000) {
-    uint16_t v;
-    bank0.readBuffer(a, (char*)&v, 2);
-    //uint16_t v = bank0.readByte(a);
-    //v |= bank0.readByte(a+1)<<8;
-    return v;
-  }
-  uint16_t v;
-  bank1.readBuffer(a, (char*)&v, 2);
-  //uint16_t v = bank1.readByte(a);
-  //v |= bank1.readByte(a+1)<<8;
-  return v;
-}
-
 uint16_t pdp11::unibus::read16(uint32_t a) {
   //printf("unibus::read16: %06o\n", a);
   if (a & 1) {
@@ -177,8 +149,9 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
   }
   
   if (a < 0760000 ) {
-    return readSRAM(a);
-    //return memory[a >> 1];
+    uint16_t v;
+    a < 0x20000 ? bank0.readBuffer(a, (char*)&v, 2) : bank1.readBuffer(a, (char*)&v, 2);
+    return v;
   }
   
   if (a == 0777546) {

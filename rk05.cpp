@@ -49,11 +49,10 @@ void rkerror(uint16_t e) {
 }
 
 void rkstep() {
-  bool w;
   if (!running) {
     return;
   }
-
+  bool w;
   switch ((RKCS & 017) >> 1) {
   case 0:
     return;
@@ -68,7 +67,7 @@ void rkstep() {
     panic();
   }
 
-/**
+  if (DEBUG_RK05) {
   Serial.print("rkstep: RKBA: "); 
   Serial.print(RKBA, DEC);
   Serial.print(" RKWC: "); 
@@ -79,7 +78,7 @@ void rkstep() {
   Serial.print(sector, DEC); 
   Serial.print(" write: ");
   Serial.println(w ? "true" : "false");
-  */
+  }
 
   if (drive != 0) {
     rkerror(RKNXD);

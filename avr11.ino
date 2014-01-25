@@ -56,6 +56,7 @@ void loop0() {
       }
       itab[ITABN - 1].vec = 0;
       itab[ITABN - 1].pri = 0;
+      continue;
     }
     cpustep();
     if (INSTR_TIMING) {

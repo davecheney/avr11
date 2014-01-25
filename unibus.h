@@ -6,10 +6,6 @@
 namespace pdp11 {
 
 class unibus {
-  private:
-  uint16_t readSRAM(uint32_t a);
-  void writeSRAM(uint32_t a, uint16_t v);
-  
   public:
     pdp11::cons cons;
     pdp11::mmu mmu;
