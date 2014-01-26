@@ -6,7 +6,7 @@
 #include "rk05.h"
 #include "unibus.h"
 #include "cpu.h"
-
+#include "xmem.h"
 
 int serialWrite(char c, FILE *f) {
   Serial.write(c);
@@ -23,16 +23,26 @@ void setup(void)
   pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
+     
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
+  Serial.println(F("Reset"));
   
 //   SPI.begin();
 //   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
-  Serial.println(F("Reset"));
+  // QuadRAM test
+  xmem::SelfTestResults results;
+ 
+  xmem::begin(false);
+  results=xmem::selfTest();
+  if(!results.succeeded) {
+    Serial.println("xram test failure");
+    panic();
+  }
+
   rkinit(); // must call rkinit first to setup sd card
-  unibus.init();
   cpureset();
   Serial.println(F("Ready"));
 }

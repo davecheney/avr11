@@ -4,48 +4,12 @@
 #include "cpu.h"
 #include "unibus.h"
 #include "rk05.h"
+#include "xmem.h"
 
-
-//uint16_t memory[MEMSIZE];
-
-SpiRAM bank0(6);
-SpiRAM bank1(7);
+int *intptr = reinterpret_cast<int *>(0x2200);
+char *charptr = reinterpret_cast<char *>(0x2200);
 
 const uint32_t ramSize = 0x1FFFF;           // 128K x 8 bit
-
-void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
-{
-  // block to 10
-  addr = addr / 10 * 10;
-  length = (length + 9) / 10 * 10;
-
-  byte b = sRam.readByte(addr);
-  for (int i = 0; i < length; i++)
-  {
-    if (addr % 10 == 0)
-    {
-      Serial.println();
-      Serial.print(addr, HEX);
-      Serial.print(":\t");
-    }
-    Serial.print(b, HEX);
-    b = sRam.readByte(++addr);
-    Serial.print("\t");
-  }
-  Serial.println();
-}
-
-void pdp11::unibus::init() {
-  Serial.print("zeroing SRAM, bank0");
-  bank0.fillBytes(0, 0x0, ramSize);
-  Serial.print(", bank1");
-  bank1.fillBytes(0, 0x0, ramSize);
-  Serial.println(", done.");
-  //  dumpsRam(bank0, 0,100);
-  //dumpsRam(bank0, ramSize - 100, 100);
-  //  dumpsRam(bank1, 0,100);
-  //dumpsRam(bank1, ramSize - 100, 100);
-}
 
 uint16_t pdp11::unibus::read8(uint32_t a) {
   if (a & 1) {
@@ -56,33 +20,23 @@ uint16_t pdp11::unibus::read8(uint32_t a) {
 
 void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
+    uint8_t bank = a >> 15;
+    xmem::setMemoryBank(bank, false);
     if (a & 1) {
-      if (a < 0x20000) {
-        bank0.writeByte(a, v & 0xff);
-      } else {
-        bank1.writeByte(a, v & 0xff);
-      }
-      //memory[a >> 1] &= 0xFF;
-      //memory[a >> 1] |= v & 0xFF << 8;
+      intptr[(a & 0x7fff) >> 1] &= 0xff;
+      intptr[(a & 0x7fff) >> 1] |= v & 0xFF << 8;
+    } else {
+      intptr[(a & 0x7fff) >> 1] &= 0xFF00;
+      intptr[(a & 0x7fff) >> 1] |= v & 0xFF;
     }
-    else {
-      if (a < 0x20000) {
-        bank0.writeByte(a, v & 0xff);
-      } else {
-        bank1.writeByte(a, v & 0xff);
-      }
-      //memory[a >> 1] &= 0xFF00;
-      //memory[a >> 1] |= v & 0xFF;
-    }
+    return;
   }
-  else {
-    if (a & 1) {
-      write16(a&~1, (read16(a) & 0xFF) | (v & 0xFF) << 8);
-    }
-    else {
-      write16(a&~1, (read16(a) & 0xFF00) | (v & 0xFF));
-    }
+  if (a & 1) {
+    write16(a&~1, (read16(a) & 0xFF) | (v & 0xFF) << 8);
+  } else {
+    write16(a&~1, (read16(a) & 0xFF00) | (v & 0xFF));
   }
+
 }
 
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
@@ -92,7 +46,10 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     trap(INTBUS);
   }
   if (a < 0760000) {
-    a < 0x20000 ? bank0.writeBuffer(a, (char*)&v, 2) : bank1.writeBuffer(a, (char*)&v, 2);
+    uint8_t bank = a >> 15;
+    xmem::setMemoryBank(bank, false);
+    intptr[(a & 0x7fff) >> 1] = v;
+    //a < 0x20000 ? bank0.writeBuffer(a, (char*)&v, 2) : bank1.writeBuffer(a, (char*)&v, 2);
     return;
   }
   else if (a == 0777776) {
@@ -147,41 +104,44 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
     Serial.print("unibus: read from odd address "); Serial.println(a, OCT);
     trap(INTBUS);
   }
-  
+
   if (a < 0760000 ) {
-    uint16_t v;
-    a < 0x20000 ? bank0.readBuffer(a, (char*)&v, 2) : bank1.readBuffer(a, (char*)&v, 2);
-    return v;
+    uint8_t bank = a >> 15;
+    xmem::setMemoryBank(bank, false);
+    return intptr[(a & 0x7fff) >> 1];
+    //uint16_t v;
+    //a < 0x20000 ? bank0.readBuffer(a, (char*)&v, 2) : bank1.readBuffer(a, (char*)&v, 2);
+    //return v;
   }
-  
+
   if (a == 0777546) {
     return LKS;
   }
-  
+
   if (a == 0777570) {
     return 0173030;
   }
-  
+
   if (a == 0777572) {
     return SR0;
   }
-  
+
   if (a == 0777576) {
     return SR2;
   }
-  
+
   if (a == 0777776) {
     return PS;
   }
-  
+
   if ((a & 0777770) == 0777560) {
     return cons.read16(a);
   }
-  
+
   if ((a & 0777760) == 0777400) {
     return rkread16(a);
   }
-  
+
   if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
     return mmu.read16(a);
   }
