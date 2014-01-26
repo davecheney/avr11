@@ -200,7 +200,8 @@ void rkinit() {
   }
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  rkdata = SD.open("UNIXV6.RK0", FILE_WRITE);
+  //rkdata = SD.open("UNIXV6.RK0", FILE_WRITE);
+  rkdata = SD.open("boot0.RK0", FILE_WRITE);
 
   // if the file is available, write to it:
   if (!rkdata) {
