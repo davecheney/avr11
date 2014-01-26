@@ -6,10 +6,10 @@
 #include "rk05.h"
 #include "xmem.h"
 
+// memory as words
 int *intptr = reinterpret_cast<int *>(0x2200);
+// memory as bytes
 char *charptr = reinterpret_cast<char *>(0x2200);
-
-const uint32_t ramSize = 0x1FFFF;           // 128K x 8 bit
 
 uint16_t pdp11::unibus::read8(uint32_t a) {
   if (a & 1) {
@@ -20,15 +20,8 @@ uint16_t pdp11::unibus::read8(uint32_t a) {
 
 void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
-    uint8_t bank = a >> 15;
-    xmem::setMemoryBank(bank, false);
-    if (a & 1) {
-      intptr[(a & 0x7fff) >> 1] &= 0xff;
-      intptr[(a & 0x7fff) >> 1] |= v & 0xFF << 8;
-    } else {
-      intptr[(a & 0x7fff) >> 1] &= 0xFF00;
-      intptr[(a & 0x7fff) >> 1] |= v & 0xFF;
-    }
+    xmem::setMemoryBank((a >> 15) & 0xf, false);
+    charptr[(a & 0x7fff)] = v & 0xff;
     return;
   }
   if (a & 1) {
@@ -40,16 +33,13 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
 }
 
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
-  //printf("unibus::write16: %06o\t", a); printf("%06o\r\n", v);
   if (a % 1) {
-    //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
+    Serial.print(F("unibus: write to odd address ")); Serial.println(a, OCT);
     trap(INTBUS);
   }
   if (a < 0760000) {
-    uint8_t bank = a >> 15;
-    xmem::setMemoryBank(bank, false);
+    xmem::setMemoryBank((a >> 15) & 0xf, false);
     intptr[(a & 0x7fff) >> 1] = v;
-    //a < 0x20000 ? bank0.writeBuffer(a, (char*)&v, 2) : bank1.writeBuffer(a, (char*)&v, 2);
     return;
   }
   else if (a == 0777776) {
@@ -93,25 +83,20 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     mmu.write16(a, v);
   }
   else {
-    Serial.print("unibus: write to invalid address "); Serial.println(a, OCT);
+    Serial.print(F("unibus: write to invalid address ")); Serial.println(a, OCT);
     trap(INTBUS);
   }
 }
 
 uint16_t pdp11::unibus::read16(uint32_t a) {
-  //printf("unibus::read16: %06o\n", a);
   if (a & 1) {
-    Serial.print("unibus: read from odd address "); Serial.println(a, OCT);
+    Serial.print(F("unibus: read from odd address ")); Serial.println(a, OCT);
     trap(INTBUS);
   }
 
   if (a < 0760000 ) {
-    uint8_t bank = a >> 15;
-    xmem::setMemoryBank(bank, false);
+    xmem::setMemoryBank((a >> 15) & 0xf, false);
     return intptr[(a & 0x7fff) >> 1];
-    //uint16_t v;
-    //a < 0x20000 ? bank0.readBuffer(a, (char*)&v, 2) : bank1.readBuffer(a, (char*)&v, 2);
-    //return v;
   }
 
   if (a == 0777546) {
@@ -120,7 +105,7 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
 
   if (a == 0777570) {
     return 0173030;
-  }
+  }  
 
   if (a == 0777572) {
     return SR0;
@@ -145,7 +130,6 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
   if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
     return mmu.read16(a);
   }
-  Serial.print("unibus: read from invalid address "); Serial.println(a, OCT);
+  Serial.print(F("unibus: read from invalid address ")); Serial.println(a, OCT);
   trap(INTBUS);
-
 }
