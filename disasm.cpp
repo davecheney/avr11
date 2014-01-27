@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "avr11.h"
 #include "cpu.h"
+#include "mmu.h"
 #include "unibus.h"
 
 char* rs[] = {
@@ -256,18 +257,18 @@ void disasmaddr(uint16_t m, uint32_t a) {
     switch (m) {
       case 027:
         a += 2;
-        printf("$%06o", unibus.read16(a));
+        printf("$%06o", unibus::read16(a));
         return;
       case 037:
         a += 2;
-        printf("*%06o", unibus.read16(a));
+        printf("*%06o", unibus::read16(a));
         return;
       case 067:
         a += 2;
-        printf("*%06o", (a + 2 + (unibus.read16(a))) & 0xFFFF);
+        printf("*%06o", (a + 2 + (unibus::read16(a))) & 0xFFFF);
         return;
       case 077:
-        printf("**%06o", (a + 2 + (unibus.read16(a))) & 0xFFFF);
+        printf("**%06o", (a + 2 + (unibus::read16(a))) & 0xFFFF);
         return;
     }
   }
@@ -293,18 +294,18 @@ void disasmaddr(uint16_t m, uint32_t a) {
       break;
     case 060:
       a += 2;
-      printf("%06o (%s)", unibus.read16(a), rs[m & 7]);
+      printf("%06o (%s)", unibus::read16(a), rs[m & 7]);
       break;
     case 070:
       a += 2;
-      printf("*%06o (%s)", unibus.read16(a), rs[m & 7]);
+      printf("*%06o (%s)", unibus::read16(a), rs[m & 7]);
       break;
   }
 }
 
 void disasm(uint32_t a) {
   uint16_t ins;
-  ins = unibus.read16(a);
+  ins = unibus::read16(a);
 
   D l;
   uint8_t i;
@@ -355,17 +356,17 @@ void disasm(uint32_t a) {
 
 void printstate() {
   printf("R0 %06o R1 %06o R2 %06o R3 %06o R4 %06o R5 %06o R6 %06o R7 %06o\r\n",
-         uint16_t(R[0]), uint16_t(R[1]), uint16_t(R[2]), uint16_t(R[3]), uint16_t(R[4]), uint16_t(R[5]), uint16_t(R[6]), uint16_t(R[7]));
+         uint16_t(cpu::R[0]), uint16_t(cpu::R[1]), uint16_t(cpu::R[2]), uint16_t(cpu::R[3]), uint16_t(cpu::R[4]), uint16_t(cpu::R[5]), uint16_t(cpu::R[6]), uint16_t(cpu::R[7]));
   printf("[%s%s%s%s%s%s",
-         prevuser ? "u" : "k",
-         curuser ? "U" : "K",
-         PS & FLAGN ? "N" : " ",
-         PS & FLAGZ ? "Z" : " ",
-         PS & FLAGV ? "V" : " ",
-         PS & FLAGC ? "C" : " ");
-  printf("]  instr %06o: %06o\t ", PC, unibus.read16(unibus.mmu.decode(PC, false, curuser)));
+         cpu::prevuser ? "u" : "k",
+         cpu::curuser ? "U" : "K",
+         cpu::PS & FLAGN ? "N" : " ",
+         cpu::PS & FLAGZ ? "Z" : " ",
+         cpu::PS & FLAGV ? "V" : " ",
+         cpu::PS & FLAGC ? "C" : " ");
+  printf("]  instr %06o: %06o\t ", cpu::PC, unibus::read16(mmu::decode(cpu::PC, false, cpu::curuser)));
 #ifdef __AVR_ATmega2560__
-  disasm(unibus.mmu.decode(PC, false, curuser));
+  disasm(mmu::decode(cpu::PC, false, cpu::curuser));
   Serial.println("");
 #endif
 }

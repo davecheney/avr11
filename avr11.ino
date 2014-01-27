@@ -4,16 +4,14 @@
 #include <SpiRAM.h>
 #include "avr11.h"
 #include "rk05.h"
+#include "cons.h"
 #include "unibus.h"
 #include "cpu.h"
-
 
 int serialWrite(char c, FILE *f) {
   Serial.write(c);
   return 0;
 }
-
-pdp11::unibus unibus;
 
 void setup(void)
 {
@@ -26,56 +24,58 @@ void setup(void)
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
-  
-//   SPI.begin();
-//   SPI.setClockDivider(SPI_CLOCK_DIV2);
+
+  //   SPI.begin();
+  //   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   Serial.println(F("Reset"));
-  rkinit(); // must call rkinit first to setup sd card
-  unibus.init();
-  cpureset();
+  rk11::init(); // must call rkinit first to setup sd card
+  unibus::init();
+  cpu::reset();
   Serial.println(F("Ready"));
 }
 
 uint16_t clkcounter;
 uint16_t instcounter;
 
+jmp_buf trapbuf;
+
 void loop() {
   uint16_t vec = setjmp(trapbuf);
   if (vec == 0) {
     loop0();
   }  else {
-    trapat(vec);
+    cpu::trapat(vec);
   }
 }
 
 void loop0() {
   while (true) {
-    if ((itab[0].vec > 0) && (itab[0].pri >= ((PS >> 5) & 7))) {
-      handleinterrupt(itab[0].vec);
+    if ((itab[0].vec > 0) && (itab[0].pri >= ((cpu::PS >> 5) & 7))) {
+      cpu::handleinterrupt(itab[0].vec);
       uint8_t i;
       for (i = 0; i < ITABN - 1; i++) {
         itab[i] = itab[i + 1];
       }
       itab[ITABN - 1].vec = 0;
       itab[ITABN - 1].pri = 0;
-    } else {
-      cpustep();
-      if (INSTR_TIMING) {
-        if (++instcounter == 0) {
-          Serial.println(millis());
-        }
-      }
-      if (++clkcounter > 39999) {
-        clkcounter = 0;
-        LKS |= (1 << 7);
-        if (LKS & (1 << 6)) {
-          interrupt(INTCLOCK, 6);
-        }
-      }
-      unibus.cons.poll();
-      rkstep();
+      return; // exit from loop to reset trapbuf
     }
+    cpu::step();
+    if (INSTR_TIMING) {
+      if (++instcounter == 0) {
+        Serial.println(millis());
+      }
+    }
+    if (++clkcounter > 39999) {
+      clkcounter = 0;
+      cpu::LKS |= (1 << 7);
+      if (cpu::LKS & (1 << 6)) {
+        cpu::interrupt(INTCLOCK, 6);
+      }
+    }
+    cons::poll();
+    rk11::step();
   }
 }
 

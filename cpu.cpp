@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include "avr11.h"
+#include "mmu.h"
+#include "cons.h"
 #include "unibus.h"
 #include "cpu.h"
 
@@ -8,57 +10,58 @@
 
 pdp11::intr itab[ITABN];
 
+namespace cpu {
+
 // signed integer registers
 int32_t R[8];
 
 uint16_t	PS; // processor status
 uint16_t	PC; // address of current instruction
 uint16_t   KSP, USP; // kernel and user stack pointer
-uint16_t SR0, SR2;
 uint16_t LKS;
-uint8_t curuser, prevuser;
+bool curuser, prevuser;
 
-void cpureset(void) {
+void reset(void) {
   LKS = 1 << 7;
   uint16_t i;
   for (i = 0; i < 29; i++) {
-    unibus.write16(02000 + (i * 2), bootrom[i]);
+    unibus::write16(02000 + (i * 2), bootrom[i]);
   }
   R[7] = 02002;
-  unibus.cons.clearterminal();
-  rkreset();
+  cons::clearterminal();
+  rk11::reset();
 }
 
 uint16_t read8(uint16_t a) {
-  return unibus.read8(unibus.mmu.decode(a, false, curuser));
+  return unibus::read8(mmu::decode(a, false, curuser));
 }
 
 uint16_t read16(uint16_t a) {
-  return unibus.read16(unibus.mmu.decode(a, false, curuser));
+  return unibus::read16(mmu::decode(a, false, curuser));
 }
 
 void write8(uint16_t a, uint16_t v) {
-  unibus.write8(unibus.mmu.decode(a, true, curuser), v);
+  unibus::write8(mmu::decode(a, true, curuser), v);
 }
 
 void write16(uint16_t a, uint16_t v) {
-  unibus.write16(unibus.mmu.decode(a, true, curuser), v);
+  unibus::write16(mmu::decode(a, true, curuser), v);
 }
 
 uint16_t memread(int32_t a, uint8_t l) {
   if (a < 0) {
     a = -(a + 1);
     if (l == 2) {
-      return (uint16_t)R[a & 7];
+      return R[a & 7];
     }
     else {
-      return (uint16_t)R[a & 7] & 0xFF;
+      return R[a & 7] & 0xFF;
     }
   }
   if (l == 2) {
-    return read16((uint16_t)a);
+    return read16(a);
   }
-  return read8((uint16_t)a);
+  return read8(a);
 }
 
 void memwrite(int32_t a, uint8_t l, uint16_t v) {
@@ -80,21 +83,19 @@ void memwrite(int32_t a, uint8_t l, uint16_t v) {
   }
 }
 
-uint16_t fetch16() {
-  uint16_t val;
-  val = read16((uint16_t)R[7]);
+static uint16_t fetch16() {
+  uint16_t val = read16(R[7]);
   R[7] += 2;
   return val;
 }
 
-void push(uint16_t v) {
+static void push(uint16_t v) {
   R[6] -= 2;
-  write16((uint16_t)R[6], v);
+  write16(R[6], v);
 }
 
-uint16_t pop() {
-  uint16_t val;
-  val = read16((uint16_t)R[6]);
+static uint16_t pop() {
+  uint16_t val = read16(R[6]);
   R[6] += 2;
   return val;
 }
@@ -106,7 +107,7 @@ int32_t aget(uint8_t v, uint8_t l) {
   if ((v & 070) == 000) {
     return -((int32_t)v + 1);
   }
-  int32_t addr = 0;
+  uint32_t addr = 0;
   switch (v & 060) {
     case 000:
       v &= 7;
@@ -127,14 +128,12 @@ int32_t aget(uint8_t v, uint8_t l) {
   }
   addr &= 0xFFFF;
   if (v & 010) {
-    //printf("read ** %06o\r\n", addr);
     addr = read16(addr);
   }
   return addr;
 }
 
-void branch(int32_t o) {
-  //printstate()
+static void branch(int16_t o) {
   if (o & 0x80) {
     o = -(((~o) + 1) & 0xFF);
   }
@@ -146,16 +145,16 @@ void switchmode(bool newm) {
   prevuser = curuser;
   curuser = newm;
   if (prevuser) {
-    USP = (uint16_t)R[6];
+    USP = R[6];
   }
   else {
-    KSP = (uint16_t)R[6];
+    KSP = R[6];
   }
   if (curuser) {
-    R[6] = (int32_t)USP;
+    R[6] = USP;
   }
   else {
-    R[6] = (int32_t)KSP;
+    R[6] = KSP;
   }
   PS &= 0007777;
   if (curuser) {
@@ -182,20 +181,19 @@ uint16_t xor16(uint16_t x, uint16_t y) {
   return z;
 }
 
-void cpustep() {
-  uint16_t max, maxp, msb, prev, instr;
-  uint8_t d, s, l, o;
+void step() {
+  uint16_t max, maxp, msb, prev, uval;
   int32_t sa, da, val, val1, val2;
   PC = R[7];
-  instr = unibus.read16(unibus.mmu.decode(PC, false, curuser));
+  uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
   R[7] += 2;
 
   if (PRINTSTATE) printstate();
-  
-  d = instr & 077;
-  s = (instr & 07700) >> 6;
-  l = 2 - (instr >> 15);
-  o = instr & 0xFF;
+
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint8_t o = instr & 0xFF;
   if (l == 2) {
     max = 0xFFFF;
     maxp = 0x7FFF;
@@ -208,7 +206,6 @@ void cpustep() {
   }
   switch (instr & 0070000) {
     case 0010000: // MOV
-      // k.printstate()
       sa = aget(s, l);
       val = memread(sa, l);
       da = aget(d, l);
@@ -623,8 +620,7 @@ void cpustep() {
       }
       return;
     case 0005700: // TST
-      da = aget(d, l);
-      val = memread(da, l);
+      val = memread(aget(d, l), l);
       PS &= 0xFFF0;
       if (val & msb) {
         PS |= FLAGN;
@@ -775,7 +771,7 @@ void cpustep() {
         panic();
       }
       else {
-        val = unibus.read16(unibus.mmu.decode((uint16_t)da, false, prevuser));
+        val = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
       }
       push(val);
       PS &= 0xFFF0;
@@ -807,8 +803,8 @@ void cpustep() {
         Serial.println(F("invalid MTPI instrution")); panic();
       }
       else {
-        sa = unibus.mmu.decode((uint16_t)da, true, prevuser);
-        unibus.write16(sa, val);
+        sa = mmu::decode((uint16_t)da, true, prevuser);
+        unibus::write16(sa, val);
       }
       PS &= 0xFFF0;
       PS |= FLAGC;
@@ -919,8 +915,8 @@ void cpustep() {
     switchmode(false);
     push(prev);
     push(R[7]);
-    R[7] = unibus.read16(vec);
-    PS = unibus.read16(vec + 2);
+    R[7] = unibus::read16(vec);
+    PS = unibus::read16(vec + 2);
     if (prevuser) {
       PS |= (1 << 13) | (1 << 12);
     }
@@ -958,27 +954,21 @@ void cpustep() {
         val &= 047;
         val |= PS & 0177730;
       }
-      unibus.write16(0777776, val);
+      unibus::write16(0777776, val);
       return;
     case 0000005: // RESET
       if (curuser) {
         return;
       }
-      unibus.cons.clearterminal();
-      rkreset();
+      cons::clearterminal();
+      rk11::reset();
       return;
     case 0170011: // SETD ; not needed by UNIX, but used; therefore ignored
       return;
   }
   //fmt.Println(ia, disasm(ia))
-  //panic(trap{INTINVAL, "invalid instruction"})
-  trap(INTINVAL);
-}
-
-jmp_buf trapbuf;
-
-void trap(uint16_t vec) {
-  longjmp(trapbuf, vec);
+  Serial.println("invalid instruction");
+  longjmp(trapbuf, INTINVAL);
 }
 
 void trapat(uint16_t vec) { // , msg string) {
@@ -999,8 +989,8 @@ void trapat(uint16_t vec) { // , msg string) {
    			panic(t)
    		}
    */
-  R[7] = unibus.read16(vec);
-  PS = unibus.read16(vec + 2);
+  R[7] = unibus::read16(vec);
+  PS = unibus::read16(vec + 2);
   if (prevuser) {
     PS |= (1 << 13) | (1 << 12);
   }
@@ -1054,10 +1044,9 @@ void interrupt(uint16_t vec, uint16_t pri) {
 }
 
 void handleinterrupt(uint16_t vec) {
-  //Serial.print("handle: "); Serial.println(vec, OCT);
+  if (DEBUG_INTER) Serial.print("IRQ: "); Serial.println(vec, OCT);
   uint16_t vv = setjmp(trapbuf);
   if (vv == 0) {
-
     uint16_t prev = PS;
     switchmode(false);
     push(prev);
@@ -1066,10 +1055,11 @@ void handleinterrupt(uint16_t vec) {
     trapat(vv);
   }
 
-  R[7] = unibus.read16(vec);
-  PS = unibus.read16(vec + 2);
+  R[7] = unibus::read16(vec);
+  PS = unibus::read16(vec + 2);
   if (prevuser) {
-  PS |= (1 << 13) | (1 << 12);
+    PS |= (1 << 13) | (1 << 12);
   }
 }
 
+};

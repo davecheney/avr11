@@ -3,14 +3,21 @@
 #include "cons.h"
 #include "cpu.h"
 
-void pdp11::cons::clearterminal() {
+namespace cons {
+
+uint16_t TKS;
+uint16_t TKB;
+uint16_t TPS;
+uint16_t TPB;
+
+void clearterminal() {
   TKS = 0;
   TPS = 1 << 7;
   TKB = 0;
   TPB = 0;
 }
 
-void pdp11::cons::addchar(char c) {
+void addchar(char c) {
   switch (c) {
     case 42:
       TKB = 4;
@@ -26,13 +33,13 @@ void pdp11::cons::addchar(char c) {
   }
   TKS |= 0x80;
   if (TKS & (1 << 6)) {
-    interrupt(INTTTYIN, 4);
+    cpu::interrupt(INTTTYIN, 4);
   }
 }
 
 uint8_t count;
 
-void pdp11::cons::poll() {
+void poll() {
   if (Serial.available()) {
     addchar(Serial.read());
   }
@@ -42,7 +49,7 @@ void pdp11::cons::poll() {
       Serial.write(TPB & 0x7f);
       TPS |= 0x80;
       if (TPS & (1 << 6)) {
-        interrupt(INTTTYOUT, 4);
+        cpu::interrupt(INTTTYOUT, 4);
       }
     }
   }
@@ -51,7 +58,7 @@ void pdp11::cons::poll() {
 // TODO(dfc) this could be rewritten to translate to the native AVR UART registers
 // http://www.appelsiini.net/2011/simple-usart-with-avr-libc
 
-uint16_t pdp11::cons::read16(uint32_t a) {
+uint16_t read16(uint32_t a) {
   switch (a) {
     case 0777560:
       return TKS;
@@ -71,7 +78,7 @@ uint16_t pdp11::cons::read16(uint32_t a) {
   }
 }
 
-void pdp11::cons::write16(uint32_t a, uint16_t v) {
+void write16(uint32_t a, uint16_t v) {
   switch (a) {
     case 0777560:
       if (v & (1 << 6)) {
@@ -100,3 +107,4 @@ void pdp11::cons::write16(uint32_t a, uint16_t v) {
   }
 }
 
+};

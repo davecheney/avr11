@@ -2,11 +2,12 @@
 #include <SpiRAM.h>
 #include "avr11.h"
 #include "cpu.h"
+#include "cons.h"
+#include "mmu.h"
 #include "unibus.h"
 #include "rk05.h"
 
-
-//uint16_t memory[MEMSIZE];
+namespace unibus {
 
 SpiRAM bank0(6);
 SpiRAM bank1(7);
@@ -35,7 +36,7 @@ void dumpsRam(SpiRAM& sRam, uint32_t addr, uint32_t length)
   Serial.println();
 }
 
-void pdp11::unibus::init() {
+void init() {
   Serial.print("zeroing SRAM, bank0");
   bank0.fillBytes(0, 0x0, ramSize);
   Serial.print(", bank1");
@@ -47,14 +48,14 @@ void pdp11::unibus::init() {
   //dumpsRam(bank1, ramSize - 100, 100);
 }
 
-uint16_t pdp11::unibus::read8(uint32_t a) {
+uint16_t read8(uint32_t a) {
   if (a & 1) {
     return read16(a & ~1) >> 8;
   }
   return read16(a & ~1) & 0xFF;
 }
 
-void pdp11::unibus::write8(uint32_t a, uint16_t v) {
+void write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
     if (a < 0x20000) {
       bank0.writeByte(a, v & 0xff);
@@ -73,10 +74,10 @@ void pdp11::unibus::write8(uint32_t a, uint16_t v) {
 
 }
 
-void pdp11::unibus::write16(uint32_t a, uint16_t v) {
+void write16(uint32_t a, uint16_t v) {
   if (a % 1) {
     Serial.print(F("unibus: write16 to odd address ")); Serial.println(a, OCT);
-    trap(INTBUS);
+    longjmp(trapbuf, INTBUS);
   }
   if (a < 0760000) {
     if (a < 0x20000) {
@@ -86,60 +87,59 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
     }
     return;
   }
-  if (a == 0777776) {
-    switch (v >> 14) {
-      case 0:
-        switchmode(false);
-        break;
-      case 3:
-        switchmode(true);
-        break;
-      default:
-        Serial.println(F("invalid mode"));
-        panic();
-    }
-    switch ((v >> 12) & 3) {
-      case 0:
-        prevuser = false;
-        break;
-      case 3:
-        prevuser = true;
-        break;
-      default:
-        Serial.println(F("invalid mode"));
-        panic();
-    }
-    PS = v;
-    return;
-  }
-  if (a == 0777546) {
-    LKS = v;
-    return;
-  }
-  if (a == 0777572) {
-    SR0 = v;
-    return;
+  switch (a) {
+    case 0777776:
+      switch (v >> 14) {
+        case 0:
+          cpu::switchmode(false);
+          break;
+        case 3:
+          cpu::switchmode(true);
+          break;
+        default:
+          Serial.println(F("invalid mode"));
+          panic();
+      }
+      switch ((v >> 12) & 3) {
+        case 0:
+          cpu::prevuser = false;
+          break;
+        case 3:
+          cpu::prevuser = true;
+          break;
+        default:
+          Serial.println(F("invalid mode"));
+          panic();
+      }
+      cpu::PS = v;
+      return;
+    case 0777546:
+      cpu::LKS = v;
+      return;
+    case 0777572:
+      mmu::SR0 = v;
+      return;
   }
   if ((a & 0777770) == 0777560) {
-    cons.write16(a, v);
+    cons::write16(a, v);
     return;
   }
   if ((a & 0777700) == 0777400) {
-    rkwrite16(a, v);
+    rk11::write16(a, v);
     return;
   }
   if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
-    mmu.write16(a, v);
+    mmu::write16(a, v);
     return;
   }
   Serial.print("unibus: write to invalid address "); Serial.println(a, OCT);
-  trap(INTBUS);
+  longjmp(trapbuf, INTBUS);
 }
 
-uint16_t pdp11::unibus::read16(uint32_t a) {
+uint16_t read16(uint32_t a) {
   if (a & 1) {
     Serial.print("unibus: read16 from odd address "); Serial.println(a, OCT);
-    trap(INTBUS);
+    longjmp(trapbuf, INTBUS);
   }
 
   if (a < 0760000 ) {
@@ -152,38 +152,33 @@ uint16_t pdp11::unibus::read16(uint32_t a) {
     return v;
   }
 
-  if (a == 0777546) {
-    return LKS;
-  }
-
-  if (a == 0777570) {
-    return 0173030;
-  }
-
-  if (a == 0777572) {
-    return SR0;
-  }
-
-  if (a == 0777576) {
-    return SR2;
-  }
-
-  if (a == 0777776) {
-    return PS;
+  switch (a) {
+    case 0777546:
+      return cpu::LKS;
+    case 0777570:
+      return 0173030;
+    case 0777572:
+      return mmu::SR0;
+    case 0777576:
+      return mmu::SR2;
+    case 0777776:
+      return cpu::PS;
   }
 
   if ((a & 0777770) == 0777560) {
-    return cons.read16(a);
+    return cons::read16(a);
   }
 
   if ((a & 0777760) == 0777400) {
-    return rkread16(a);
+    return rk11::read16(a);
   }
 
   if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
-    return mmu.read16(a);
+    return mmu::read16(a);
   }
-  
+
   Serial.print("unibus: read from invalid address "); Serial.println(a, OCT);
-  trap(INTBUS);
+  longjmp(trapbuf, INTBUS);
 }
+
+};

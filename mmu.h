@@ -1,25 +1,10 @@
-class page {
-public:
-  uint16_t par, pdr;
+namespace mmu {
+  
+    extern uint16_t SR0;
+    extern uint16_t SR2;
 
-  uint16_t addr();
-  uint16_t len();
-  bool read();
-  bool write();
-  bool ed();
-};
-
-namespace pdp11 {
-
-  class mmu {
-    page pages[16];
-
-    void dumppages();
-  public:
-    void reset();
     uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
-    uint16_t read16(int32_t a);
-    void write16(int32_t a, uint16_t v);
-  };
+    uint16_t read16(uint32_t a);
+    void write16(uint32_t a, uint16_t v);
 
 };
