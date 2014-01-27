@@ -14,7 +14,7 @@ enum {
 enum {
   PRINTSTATE = false,
   INSTR_TIMING = true,
-  DEBUG_RK05 = true,
+  DEBUG_RK05 = false,
   DEBUG_MMU = false,
 };
 

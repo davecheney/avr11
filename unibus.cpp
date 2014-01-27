@@ -56,46 +56,37 @@ uint16_t pdp11::unibus::read8(uint32_t a) {
 
 void pdp11::unibus::write8(uint32_t a, uint16_t v) {
   if (a < 0760000) {
-    if (a & 1) {
-      if (a < 0x20000) {
-        bank0.writeByte(a, v & 0xff);
-      } else {
-        bank1.writeByte(a, v & 0xff);
-      }
-      //memory[a >> 1] &= 0xFF;
-      //memory[a >> 1] |= v & 0xFF << 8;
+    if (a < 0x20000) {
+      bank0.writeByte(a, v & 0xff);
+    } else {
+      bank1.writeByte(a, v & 0xff);
     }
-    else {
-      if (a < 0x20000) {
-        bank0.writeByte(a, v & 0xff);
-      } else {
-        bank1.writeByte(a, v & 0xff);
-      }
-      //memory[a >> 1] &= 0xFF00;
-      //memory[a >> 1] |= v & 0xFF;
-    }
+    return;
+  }
+
+  if (a & 1) {
+    write16(a&~1, (read16(a) & 0xFF) | (v & 0xFF) << 8);
   }
   else {
-    if (a & 1) {
-      write16(a&~1, (read16(a) & 0xFF) | (v & 0xFF) << 8);
-    }
-    else {
-      write16(a&~1, (read16(a) & 0xFF00) | (v & 0xFF));
-    }
+    write16(a&~1, (read16(a) & 0xFF00) | (v & 0xFF));
   }
+
 }
 
 void pdp11::unibus::write16(uint32_t a, uint16_t v) {
-  //printf("unibus::write16: %06o\t", a); printf("%06o\r\n", v);
   if (a % 1) {
-    //panic(trap{INTBUS, "write to odd address " + ostr(a, 6)})
+    Serial.print(F("unibus: write16 to odd address ")); Serial.println(a, OCT);
     trap(INTBUS);
   }
   if (a < 0760000) {
-    a < 0x20000 ? bank0.writeBuffer(a, (char*)&v, 2) : bank1.writeBuffer(a, (char*)&v, 2);
+    if (a < 0x20000) {
+      bank0.writeBuffer(a, (char*)&v, 2);
+    } else {
+      bank1.writeBuffer(a, (char*)&v, 2);
+    }
     return;
   }
-  else if (a == 0777776) {
+  if (a == 0777776) {
     switch (v >> 14) {
       case 0:
         switchmode(false);
@@ -119,73 +110,80 @@ void pdp11::unibus::write16(uint32_t a, uint16_t v) {
         panic();
     }
     PS = v;
+    return;
   }
-  else if (a == 0777546) {
+  if (a == 0777546) {
     LKS = v;
+    return;
   }
-  else if (a == 0777572) {
+  if (a == 0777572) {
     SR0 = v;
+    return;
   }
-  else if ((a & 0777770) == 0777560) {
+  if ((a & 0777770) == 0777560) {
     cons.write16(a, v);
+    return;
   }
-  else if ((a & 0777700) == 0777400) {
+  if ((a & 0777700) == 0777400) {
     rkwrite16(a, v);
+    return;
   }
-  else if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
+  if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
     mmu.write16(a, v);
+    return;
   }
-  else {
-    Serial.print("unibus: write to invalid address "); Serial.println(a, OCT);
-    trap(INTBUS);
-  }
+  Serial.print("unibus: write to invalid address "); Serial.println(a, OCT);
+  trap(INTBUS);
 }
 
 uint16_t pdp11::unibus::read16(uint32_t a) {
-  //printf("unibus::read16: %06o\n", a);
   if (a & 1) {
-    Serial.print("unibus: read from odd address "); Serial.println(a, OCT);
+    Serial.print("unibus: read16 from odd address "); Serial.println(a, OCT);
     trap(INTBUS);
   }
-  
+
   if (a < 0760000 ) {
     uint16_t v;
-    a < 0x20000 ? bank0.readBuffer(a, (char*)&v, 2) : bank1.readBuffer(a, (char*)&v, 2);
+    if (a < 0x20000) {
+      bank0.readBuffer(a, (char*)&v, 2);
+    } else {
+      bank1.readBuffer(a, (char*)&v, 2);
+    }
     return v;
   }
-  
+
   if (a == 0777546) {
     return LKS;
   }
-  
+
   if (a == 0777570) {
     return 0173030;
   }
-  
+
   if (a == 0777572) {
     return SR0;
   }
-  
+
   if (a == 0777576) {
     return SR2;
   }
-  
+
   if (a == 0777776) {
     return PS;
   }
-  
+
   if ((a & 0777770) == 0777560) {
     return cons.read16(a);
   }
-  
+
   if ((a & 0777760) == 0777400) {
     return rkread16(a);
   }
-  
+
   if (((a & 0777600) == 0772200) || ((a & 0777600) == 0777600)) {
     return mmu.read16(a);
   }
+  
   Serial.print("unibus: read from invalid address "); Serial.println(a, OCT);
   trap(INTBUS);
-
 }

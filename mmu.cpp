@@ -41,8 +41,8 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   if (((uint8_t)SR0 & 1) == 0) {
     return a > 0167777 ? ((uint32_t)a) + 0600000 : a;
   }
-  page p = pages[user ? (a >> 13) + 8 : (a >> 13)];
-  if (w && !p.write()) {
+  uint8_t i = user ? ((a >> 13) + 8) : (a >> 13);
+  if (w && !pages[i].write()) {
     SR0 = (1 << 13) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -53,7 +53,7 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("write to read-only page %06o\r\n", a);
     trap(INTFAULT);
   }
-  if (!p.read()) {
+  if (!pages[i].read()) {
     SR0 = (1 << 15) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -66,25 +66,24 @@ uint32_t pdp11::mmu::decode(uint16_t a, uint8_t w, uint8_t user) {
   uint8_t block = (a >> 6) & 0177;
   uint8_t disp = a & 077;
   // if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
-  if (p.ed() ? (block < p.len()) : (block > p.len())) {
+  if (pages[i].ed() ? (block < pages[i].len()) : (block > pages[i].len())) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
       SR0 |= (1 << 5) | (1 << 6);
     }
     SR2 = PC;
-    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, p.len());
+    printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, pages[i].len());
     trap(INTFAULT);
   }
   if (w) {
-    // watch out !
-    //p.pdr |= 1 << 6;
+    pages[i].pdr |= 1 << 6;
   }
   // danger, this can be cast to a uint16_t if you aren't careful
   //uint32_t aa = block + p.addr();
   //aa = aa << 6;
   //aa += disp;
-  uint32_t aa = (((uint32_t)block) + ((uint32_t)(p.addr())) << 6) + disp;
+  uint32_t aa = (((uint32_t)block) + ((uint32_t)(pages[i].addr())) << 6) + disp;
   if (DEBUG_MMU) {
     Serial.print("decode: slow "); Serial.print(a, OCT); Serial.print(" -> "); Serial.println(aa, OCT);
     //dumppages();

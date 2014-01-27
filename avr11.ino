@@ -66,8 +66,7 @@ void loop0() {
           Serial.println(millis());
         }
       }
-      clkcounter++;
-      if (clkcounter > 39999) {
+      if (++clkcounter > 39999) {
         clkcounter = 0;
         LKS |= (1 << 7);
         if (LKS & (1 << 6)) {
