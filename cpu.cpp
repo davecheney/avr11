@@ -32,19 +32,19 @@ void reset(void) {
   rk11::reset();
 }
 
-uint16_t read8(uint16_t a) {
+static uint16_t read8(const uint16_t a) {
   return unibus::read8(mmu::decode(a, false, curuser));
 }
 
-uint16_t read16(uint16_t a) {
+static uint16_t read16(const uint16_t a) {
   return unibus::read16(mmu::decode(a, false, curuser));
 }
 
-void write8(uint16_t a, uint16_t v) {
+static void write8(const uint16_t a, const uint16_t v) {
   unibus::write8(mmu::decode(a, true, curuser), v);
 }
 
-void write16(uint16_t a, uint16_t v) {
+static void write16(const uint16_t a, const uint16_t v) {
   unibus::write16(mmu::decode(a, true, curuser), v);
 }
 
@@ -68,18 +68,19 @@ void memwrite(int32_t a, uint8_t l, uint16_t v) {
   if (a < 0) {
     a = -(a + 1);
     if (l == 2) {
-      R[a & 7] = (int32_t)v;
+      R[a & 7] = v;
     }
     else {
       R[a & 7] &= 0xFF00;
-      R[a & 7] |= (int32_t)v;
+      R[a & 7] |= v;
     }
+    return;
   }
-  else if (l == 2) {
-    write16((uint16_t)a, v);
+  if (l == 2) {
+    write16(a, v);
   }
   else {
-    write8((uint16_t)a, v);
+    write8(a, v);
   }
 }
 
@@ -100,14 +101,14 @@ static uint16_t pop() {
   return val;
 }
 
-int32_t aget(uint8_t v, uint8_t l) {
-  if (((v & 7) >= 6) || (v & 010)) {
-    l = 2;
-  }
+static int32_t aget(uint8_t v, uint8_t l) {
   if ((v & 070) == 000) {
     return -((int32_t)v + 1);
   }
-  uint32_t addr = 0;
+  if (((v & 7) >= 6) || (v & 010)) {
+    l = 2;
+  }
+  uint16_t addr = 0;
   switch (v & 060) {
     case 000:
       v &= 7;
@@ -126,11 +127,10 @@ int32_t aget(uint8_t v, uint8_t l) {
       addr += R[v & 7];
       break;
   }
-  addr &= 0xFFFF;
   if (v & 010) {
     addr = read16(addr);
   }
-  return addr;
+  return (int32_t)addr;
 }
 
 static void branch(int16_t o) {
@@ -942,8 +942,6 @@ void step() {
       if (curuser) {
         break;
       }
-      //println("WAIT")
-      //waiting = true
       return;
     case 0000002: // RTI
 
@@ -972,7 +970,13 @@ void step() {
 }
 
 void trapat(uint16_t vec) { // , msg string) {
-  uint16_t prev;
+  if (vec & 1) {
+    Serial.println(F("Thou darst calling trapat() with an odd vector number?"));
+    panic();
+  }
+  Serial.print(F("trap: ")); Serial.println(vec, OCT);
+  //printstate();
+
   /*var prev uint16
    	defer func() {
    		t = recover()
@@ -989,27 +993,19 @@ void trapat(uint16_t vec) { // , msg string) {
    			panic(t)
    		}
    */
+  uint16_t prev = PS;
+  switchmode(false);
+  push(prev);
+  push(R[7]);
+
   R[7] = unibus::read16(vec);
   PS = unibus::read16(vec + 2);
   if (prevuser) {
     PS |= (1 << 13) | (1 << 12);
   }
-  // waiting = false;
-
-  if (vec & 1) {
-    Serial.println(F("Thou darst calling trapat() with an odd vector number?"));
-    panic();
-  }
-  printf("trap: %06o\r\n", vec);
-  printstate();
-
-  prev = PS;
-  switchmode(false);
-  push(prev);
-  push(R[7]);
 }
 
-void interrupt(uint16_t vec, uint16_t pri) {
+void interrupt(uint8_t vec, uint8_t pri) {
   if (vec & 1) {
     Serial.println(F("Thou darst calling interrupt() with an odd vector number?"));
     panic();
@@ -1042,7 +1038,7 @@ void interrupt(uint16_t vec, uint16_t pri) {
   itab[i].pri = pri;
 }
 
-void handleinterrupt(uint16_t vec) {
+void handleinterrupt(uint8_t vec) {
   if (DEBUG_INTER) {
     Serial.print("IRQ: "); Serial.println(vec, OCT);
   }

@@ -75,7 +75,6 @@ void loop0() {
       }
     }
     cons::poll();
-    rk11::step();
   }
 }
 

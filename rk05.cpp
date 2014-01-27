@@ -11,8 +11,6 @@ namespace rk11 {
 uint32_t RKBA, RKDS, RKER, RKCS, RKWC;
 uint32_t drive, sector, surface, cylinder;
 
-bool running;
-
 File rkdata;
 
 uint16_t read16(uint32_t a) {
@@ -51,9 +49,7 @@ void rkerror(uint16_t e) {
 }
 
 void step() {
-  if (!running) {
-    return;
-  }
+  again:
   bool w;
   switch ((RKCS & 017) >> 1) {
     case 0:
@@ -124,11 +120,12 @@ void step() {
     }
   }
   if (RKWC == 0) {
-    running = false;
     rkready();
     if (RKCS & (1 << 6)) {
       cpu::interrupt(INTRK, 5);
     }
+  } else {
+    goto again;
   }
 }
 
@@ -151,8 +148,8 @@ void write16(uint32_t a, uint16_t v) {
             break;
           case 1:
           case 2:
-            running = true;
             rknotready();
+            step();
             break;
           default:
             Serial.println(F("unimplemented RK05 operation")); // %#o", ((r.RKCS & 017) >> 1)))
