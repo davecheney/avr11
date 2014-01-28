@@ -192,8 +192,8 @@ uint16_t xor16(uint16_t x, uint16_t y) {
 }
 
 void step() {
-  uint16_t max, maxp, msb, prev, uval;
-  int32_t sa, da, val, val1, val2;
+  uint16_t max, maxp, msb, prev, uval, da;
+  int32_t val, val1, val2;
   PC = R[7];
   uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
   R[7] += 2;
@@ -216,8 +216,7 @@ void step() {
   }
   switch (instr & 0070000) {
     case 0010000: // MOV
-      sa = aget(s, l);
-      val = memread(sa, l);
+      val = memread(aget(s, l), l);
       da = aget(d, l);
       PS &= 0xFFF1;
       if (val & msb) {
@@ -235,8 +234,7 @@ void step() {
       memwrite(da, l, val);
       return;
     case 0020000: // CMP
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = (val1 - val2) & max;
@@ -255,8 +253,7 @@ void step() {
       }
       return;
     case 0030000: // BIT
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = val1 & val2;
@@ -269,8 +266,7 @@ void step() {
       }
       return;
     case 0040000: // BIC
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = (max ^ val1) & val2;
@@ -284,8 +280,7 @@ void step() {
       memwrite(da, l, val);
       return;
     case 0050000: // BIS
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = val1 | val2;
@@ -301,8 +296,7 @@ void step() {
   }
   switch (instr & 0170000) {
     case 0060000: // ADD
-      sa = aget(s, 2);
-      val1 = memread(sa, 2);
+      val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
       val = (val1 + val2) & 0xFFFF;
@@ -322,8 +316,7 @@ void step() {
       memwrite(da, 2, val);
       return;
     case 0160000: // SUB
-      sa = aget(s, 2);
-      val1 = memread(sa, 2);
+      val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
       val = (val2 - val1) & 0xFFFF;
@@ -813,8 +806,7 @@ void step() {
         Serial.println(F("invalid MTPI instrution")); panic();
       }
       else {
-        sa = mmu::decode((uint16_t)da, true, prevuser);
-        unibus::write16(sa, val);
+        unibus::write16(mmu::decode((uint16_t)da, true, prevuser), val);
       }
       PS &= 0xFFF0;
       PS |= FLAGC;
