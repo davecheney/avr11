@@ -13,7 +13,7 @@ enum {
 
 enum {
   PRINTSTATE = false,
-  INSTR_TIMING = true,
+  INSTR_TIMING = false,
   DEBUG_INTER = false,
   DEBUG_RK05 = false,
   DEBUG_MMU = false,

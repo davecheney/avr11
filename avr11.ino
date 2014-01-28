@@ -7,6 +7,7 @@
 #include "cons.h"
 #include "unibus.h"
 #include "cpu.h"
+#include "xmem.h"
 
 int serialWrite(char c, FILE *f) {
   Serial.write(c);
@@ -24,11 +25,23 @@ void setup(void)
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
   pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11 
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
+     
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
 
   Serial.println(F("Reset"));
+
+  // Xmem test
+  xmem::SelfTestResults results;
+ 
+  xmem::begin(false);
+  results=xmem::selfTest();
+  if(!results.succeeded) {
+    Serial.println("xram test failure");
+    panic();
+  }
+
     // Initialize SdFat or print a detailed error message and halt
   // Use half speed like the native library.
   // change to SPI_FULL_SPEED for more performance.
@@ -37,7 +50,6 @@ void setup(void)
     sd.errorHalt("opening boot1.RK0 for write failed");
   }
 
-  unibus::init();
   cpu::reset();
   Serial.println(F("Ready"));
 }
