@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 #include <SpiRAM.h>
 #include "avr11.h"
 #include "rk05.h"
@@ -12,6 +12,8 @@ int serialWrite(char c, FILE *f) {
   Serial.write(c);
   return 0;
 }
+
+SdFat sd;
 
 void setup(void)
 {
@@ -29,7 +31,14 @@ void setup(void)
   //   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   Serial.println(F("Reset"));
-  rk11::init(); // must call rkinit first to setup sd card
+    // Initialize SdFat or print a detailed error message and halt
+  // Use half speed like the native library.
+  // change to SPI_FULL_SPEED for more performance.
+  if (!sd.begin(4, SPI_FULL_SPEED)) sd.initErrorHalt();
+    if (!rk11::rkdata.open("boot1.RK0", O_RDWR )) {
+    sd.errorHalt("opening boot1.RK0 for write failed");
+  }
+
   unibus::init();
   cpu::reset();
   Serial.println(F("Ready"));

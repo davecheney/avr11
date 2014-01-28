@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <SpiRAM.h>
+#include <SdFat.h>
 #include "avr11.h"
 #include "cpu.h"
 #include "cons.h"

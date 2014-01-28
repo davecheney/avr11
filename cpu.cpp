@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <SdFat.h>
 #include "avr11.h"
 #include "mmu.h"
 #include "cons.h"
@@ -897,26 +898,24 @@ void step() {
       return;
   }
   if (((instr & 0177000) == 0104000) || (instr == 3) || (instr == 4)) { // EMT TRAP IOT BPT
-    uint16_t vec;
-
     if ((instr & 0177400) == 0104000) {
-      vec = 030;
+      uval = 030;
     }
     else if ((instr & 0177400) == 0104400) {
-      vec = 034;
+      uval = 034;
     }
     else if (instr == 3) {
-      vec = 014;
+      uval = 014;
     }
     else {
-      vec = 020;
+      uval = 020;
     }
     prev = PS;
     switchmode(false);
     push(prev);
     push(R[7]);
-    R[7] = unibus::read16(vec);
-    PS = unibus::read16(vec + 2);
+    R[7] = unibus::read16(uval);
+    PS = unibus::read16(uval + 2);
     if (prevuser) {
       PS |= (1 << 13) | (1 << 12);
     }
