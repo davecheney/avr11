@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <Arduino.h>
-#include <SD.h>
+#include <SdFat.h>
 #include "avr11.h"
 #include "unibus.h"
 #include "rk05.h"
@@ -11,7 +11,7 @@ namespace rk11 {
 uint32_t RKBA, RKDS, RKER, RKCS, RKWC;
 uint32_t drive, sector, surface, cylinder;
 
-File rkdata;
+SdFile rkdata;
 
 uint16_t read16(uint32_t a) {
   switch (a) {
@@ -89,7 +89,7 @@ void step() {
   }
 
   int32_t pos = (cylinder * 24 + surface * 12 + sector) * 512;
-  if (!rkdata.seek(pos)) {
+  if (!rkdata.seekSet(pos)) {
     Serial.println(F("rkstep: failed to seek"));
     panic();
   }
@@ -183,31 +183,4 @@ void reset() {
   RKBA = 0;
 }
 
-void init() {
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-  // or the SD library functions will not work.
-  pinMode(53, OUTPUT);
-
-  pinMode(13, OUTPUT); // d13 is our sdcard access indicator
-
-  if (!SD.begin(4)) {
-    Serial.println(F("initialization failed!"));
-    panic();
-  }
-  // open the file. note that only one file can be open at a time,
-  // so you have to close this one before opening another.
-  rkdata = SD.open("UNIXV6.RK0", FILE_WRITE);
-
-  // if the file is available, write to it:
-  if (!rkdata) {
-    Serial.println(F("rkinit: could not open rk0"));
-    panic();
-  }
-}
-
 };
-
-
-

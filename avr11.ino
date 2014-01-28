@@ -1,17 +1,20 @@
 #include <stdint.h>
 #include <SPI.h>
-#include <SD.h>
+#include <SdFat.h>
 #include <SpiRAM.h>
 #include "avr11.h"
 #include "rk05.h"
 #include "cons.h"
 #include "unibus.h"
 #include "cpu.h"
+#include "xmem.h"
 
 int serialWrite(char c, FILE *f) {
   Serial.write(c);
   return 0;
 }
+
+SdFat sd;
 
 void setup(void)
 {
@@ -20,17 +23,33 @@ void setup(void)
   pinMode(6, OUTPUT); digitalWrite(6, HIGH);
   pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
+  pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11 
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
+     
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
 
-  //   SPI.begin();
-  //   SPI.setClockDivider(SPI_CLOCK_DIV2);
-
   Serial.println(F("Reset"));
-  rk11::init(); // must call rkinit first to setup sd card
-  unibus::init();
+
+  // Xmem test
+  xmem::SelfTestResults results;
+ 
+  xmem::begin(false);
+  results=xmem::selfTest();
+  if(!results.succeeded) {
+    Serial.println("xram test failure");
+    panic();
+  }
+
+    // Initialize SdFat or print a detailed error message and halt
+  // Use half speed like the native library.
+  // change to SPI_FULL_SPEED for more performance.
+  if (!sd.begin(4, SPI_FULL_SPEED)) sd.initErrorHalt();
+    if (!rk11::rkdata.open("boot1.RK0", O_RDWR )) {
+    sd.errorHalt("opening boot1.RK0 for write failed");
+  }
+
   cpu::reset();
   Serial.println(F("Ready"));
 }

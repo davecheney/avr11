@@ -12,7 +12,7 @@ class page {
     uint16_t addr() {
       return par & 07777;
     }
-    uint16_t len() {
+    uint8_t len() {
       return (pdr >> 8) & 0x7f;
     }
     bool read() {

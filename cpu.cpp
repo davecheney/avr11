@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <SdFat.h>
 #include "avr11.h"
 #include "mmu.h"
 #include "cons.h"
@@ -48,14 +49,18 @@ static void write16(const uint16_t a, const uint16_t v) {
   unibus::write16(mmu::decode(a, true, curuser), v);
 }
 
-uint16_t memread(int32_t a, uint8_t l) {
-  if (a < 0) {
-    a = -(a + 1);
+static bool isReg(uint16_t a) {
+  return (a & 0177770) == 0170000;
+}
+
+uint16_t memread(uint16_t a, uint8_t l) {
+  if (isReg(a)) {
+    uint8_t r = a & 7;
     if (l == 2) {
-      return R[a & 7];
+      return R[r];
     }
     else {
-      return R[a & 7] & 0xFF;
+      return R[r] & 0xFF;
     }
   }
   if (l == 2) {
@@ -64,15 +69,15 @@ uint16_t memread(int32_t a, uint8_t l) {
   return read8(a);
 }
 
-void memwrite(int32_t a, uint8_t l, uint16_t v) {
-  if (a < 0) {
-    a = -(a + 1);
+void memwrite(uint16_t a, uint8_t l, uint16_t v) {
+  if (isReg(a)) {
+    uint8_t r = a & 7;
     if (l == 2) {
-      R[a & 7] = v;
+      R[r] = v;
     }
     else {
-      R[a & 7] &= 0xFF00;
-      R[a & 7] |= v;
+      R[r] &= 0xFF00;
+      R[r] |= v;
     }
     return;
   }
@@ -101,9 +106,14 @@ static uint16_t pop() {
   return val;
 }
 
-static int32_t aget(uint8_t v, uint8_t l) {
+// aget resolves the operand to a vaddress.
+// if the operand is a register, an address in 
+// the range [0170000,0170007). This address range is 
+// technically a valid IO page, but unibus doesn't map
+// any addresses here, so we can safely do this.
+static uint16_t aget(uint8_t v, uint8_t l) {
   if ((v & 070) == 000) {
-    return -((int32_t)v + 1);
+    return 0170000 | (v & 7);
   }
   if (((v & 7) >= 6) || (v & 010)) {
     l = 2;
@@ -130,7 +140,7 @@ static int32_t aget(uint8_t v, uint8_t l) {
   if (v & 010) {
     addr = read16(addr);
   }
-  return (int32_t)addr;
+  return addr;
 }
 
 static void branch(int16_t o) {
@@ -182,8 +192,8 @@ uint16_t xor16(uint16_t x, uint16_t y) {
 }
 
 void step() {
-  uint16_t max, maxp, msb, prev, uval;
-  int32_t sa, da, val, val1, val2;
+  uint16_t max, maxp, msb, prev, uval, da;
+  int32_t val, val1, val2;
   PC = R[7];
   uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
   R[7] += 2;
@@ -206,8 +216,7 @@ void step() {
   }
   switch (instr & 0070000) {
     case 0010000: // MOV
-      sa = aget(s, l);
-      val = memread(sa, l);
+      val = memread(aget(s, l), l);
       da = aget(d, l);
       PS &= 0xFFF1;
       if (val & msb) {
@@ -216,7 +225,7 @@ void step() {
       if (val == 0) {
         PS |= FLAGZ;
       }
-      if ((da < 0) && (l == 1)) {
+      if ((isReg(da)) && (l == 1)) {
         l = 2;
         if (val & msb) {
           val |= 0xFF00;
@@ -225,8 +234,7 @@ void step() {
       memwrite(da, l, val);
       return;
     case 0020000: // CMP
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = (val1 - val2) & max;
@@ -245,8 +253,7 @@ void step() {
       }
       return;
     case 0030000: // BIT
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = val1 & val2;
@@ -259,8 +266,7 @@ void step() {
       }
       return;
     case 0040000: // BIC
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = (max ^ val1) & val2;
@@ -274,8 +280,7 @@ void step() {
       memwrite(da, l, val);
       return;
     case 0050000: // BIS
-      sa = aget(s, l);
-      val1 = memread(sa, l);
+      val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
       val = val1 | val2;
@@ -291,8 +296,7 @@ void step() {
   }
   switch (instr & 0170000) {
     case 0060000: // ADD
-      sa = aget(s, 2);
-      val1 = memread(sa, 2);
+      val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
       val = (val1 + val2) & 0xFFFF;
@@ -312,8 +316,7 @@ void step() {
       memwrite(da, 2, val);
       return;
     case 0160000: // SUB
-      sa = aget(s, 2);
-      val1 = memread(sa, 2);
+      val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
       val = (val2 - val1) & 0xFFFF;
@@ -726,7 +729,7 @@ void step() {
   switch (instr & 0177700) {
     case 0000100: // JMP
       val = aget(d, 2);
-      if (val < 0) {
+      if (isReg(val)) {
         Serial.println(F("JMP called with register dest"));
         panic();
       }
@@ -752,7 +755,7 @@ void step() {
       break;
     case 0006500: // MFPI
       da = aget(d, 2);
-      if (da == -7) {
+      if (da == 0170006) {
         // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
         if (curuser == prevuser) {
           val = R[6];
@@ -766,7 +769,7 @@ void step() {
           }
         }
       }
-      else if (da < 0) {
+      else if (isReg(da)) {
         Serial.println(F("invalid MFPI instruction"));
         panic();
       }
@@ -786,7 +789,7 @@ void step() {
     case 0006600: // MTPI
       da = aget(d, 2);
       val = pop();
-      if (da == -7) {
+      if (da == 0170006) {
         if (curuser == prevuser) {
           R[6] = val;
         }
@@ -799,12 +802,11 @@ void step() {
           }
         }
       }
-      else if (da < 0) {
+      else if (isReg(da)) {
         Serial.println(F("invalid MTPI instrution")); panic();
       }
       else {
-        sa = mmu::decode((uint16_t)da, true, prevuser);
-        unibus::write16(sa, val);
+        unibus::write16(mmu::decode((uint16_t)da, true, prevuser), val);
       }
       PS &= 0xFFF0;
       PS |= FLAGC;
@@ -897,26 +899,24 @@ void step() {
       return;
   }
   if (((instr & 0177000) == 0104000) || (instr == 3) || (instr == 4)) { // EMT TRAP IOT BPT
-    uint16_t vec;
-
     if ((instr & 0177400) == 0104000) {
-      vec = 030;
+      uval = 030;
     }
     else if ((instr & 0177400) == 0104400) {
-      vec = 034;
+      uval = 034;
     }
     else if (instr == 3) {
-      vec = 014;
+      uval = 014;
     }
     else {
-      vec = 020;
+      uval = 020;
     }
     prev = PS;
     switchmode(false);
     push(prev);
     push(R[7]);
-    R[7] = unibus::read16(vec);
-    PS = unibus::read16(vec + 2);
+    R[7] = unibus::read16(uval);
+    PS = unibus::read16(uval + 2);
     if (prevuser) {
       PS |= (1 << 13) | (1 << 12);
     }
