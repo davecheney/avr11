@@ -107,8 +107,8 @@ static uint16_t pop() {
 }
 
 // aget resolves the operand to a vaddress.
-// if the operand is a register, an address in 
-// the range [0170000,0170007). This address range is 
+// if the operand is a register, an address in
+// the range [0170000,0170007). This address range is
 // technically a valid IO page, but unibus doesn't map
 // any addresses here, so we can safely do this.
 static uint16_t aget(uint8_t v, uint8_t l) {
@@ -192,8 +192,10 @@ uint16_t xor16(uint16_t x, uint16_t y) {
 }
 
 void step() {
-  uint16_t max, maxp, msb, prev, uval, da;
-  int32_t val, val1, val2;
+  uint16_t uval;
+  int32_t sval;
+  uint16_t max, maxp, msb, prev, da;
+  int32_t val1, val2;
   PC = R[7];
   uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
   R[7] += 2;
@@ -216,36 +218,36 @@ void step() {
   }
   switch (instr & 0070000) {
     case 0010000: // MOV
-      val = memread(aget(s, l), l);
+      uval = memread(aget(s, l), l);
       da = aget(d, l);
       PS &= 0xFFF1;
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
       if ((isReg(da)) && (l == 1)) {
         l = 2;
-        if (val & msb) {
-          val |= 0xFF00;
+        if (uval & msb) {
+          uval |= 0xFF00;
         }
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0020000: // CMP
       val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
-      val = (val1 - val2) & max;
+      sval = (val1 - val2) & max;
       PS &= 0xFFF0;
-      if (val == 0) {
+      if (sval == 0) {
         PS |= FLAGZ;
       }
-      if (val & msb) {
+      if (sval & msb) {
         PS |= FLAGN;
       }
-      if (((val1 ^ val2)&msb) && (!((val2 ^ val)&msb))) {
+      if (((val1 ^ val2)&msb) && (!((val2 ^ sval)&msb))) {
         PS |= FLAGV;
       }
       if (val1 < val2) {
@@ -256,12 +258,12 @@ void step() {
       val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
-      val = val1 & val2;
+      uval = val1 & val2;
       PS &= 0xFFF1;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
       return;
@@ -269,29 +271,29 @@ void step() {
       val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
-      val = (max ^ val1) & val2;
+      uval = (max ^ val1) & val2;
       PS &= 0xFFF1;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0050000: // BIS
       val1 = memread(aget(s, l), l);
       da = aget(d, l);
       val2 = memread(da, l);
-      val = val1 | val2;
+      uval = val1 | val2;
       PS &= 0xFFF1;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
   }
   switch (instr & 0170000) {
@@ -299,53 +301,53 @@ void step() {
       val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
-      val = (val1 + val2) & 0xFFFF;
+      uval = (val1 + val2) & 0xFFFF;
       PS &= 0xFFF0;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x8000) {
+      if (uval & 0x8000) {
         PS |= FLAGN;
       }
-      if (!((val1 ^ val2) & 0x8000) && ((val2 ^ val) & 0x8000)) {
+      if (!((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000)) {
         PS |= FLAGV;
       }
-      if (((int32_t)val1 + (int32_t)val2) >= 0xFFFF) {
+      if ((val1 + val2) >= 0xFFFF) {
         PS |= FLAGC;
       }
-      memwrite(da, 2, val);
+      memwrite(da, 2, uval);
       return;
     case 0160000: // SUB
       val1 = memread(aget(s, 2), 2);
       da = aget(d, 2);
       val2 = memread(da, 2);
-      val = (val2 - val1) & 0xFFFF;
+      uval = (val2 - val1) & 0xFFFF;
       PS &= 0xFFF0;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x8000) {
+      if (uval & 0x8000) {
         PS |= FLAGN;
       }
-      if (((val1 ^ val2) & 0x8000) && (!((val2 ^ val) & 0x8000))) {
+      if (((val1 ^ val2) & 0x8000) && (!((val2 ^ uval) & 0x8000))) {
         PS |= FLAGV;
       }
       if (val1 > val2) {
         PS |= FLAGC;
       }
-      memwrite(da, 2, val);
+      memwrite(da, 2, uval);
       return;
   }
   switch (instr & 0177000) {
     case 0004000: // JSR
-      val = aget(d, l);
-      if (isReg(val)) {
+      uval = aget(d, l);
+      if (isReg(uval)) {
         Serial.println(F("JSR called on register"));
         panic();
       }
-      push((uint16_t)R[s & 7]);
+      push(R[s & 7]);
       R[s & 7] = R[7];
-      R[7] = val;
+      R[7] = uval;
       return;
     case 0070000: // MUL
       val1 = R[s & 7];
@@ -357,17 +359,17 @@ void step() {
       if (val2 & 0x8000) {
         val2 = -((0xFFFF ^ val2) + 1);
       }
-      val = val1 * val2;
-      R[s & 7] = (val & 0xFFFF0000) >> 16;
-      R[(s & 7) | 1] = val & 0xFFFF;
+      sval = val1 * val2;
+      R[s & 7] = (sval & 0xFFFF0000) >> 16;
+      R[(s & 7) | 1] = sval & 0xFFFF;
       PS &= 0xFFF0;
-      if (val & 0x80000000) {
+      if (sval & 0x80000000) {
         PS |= FLAGN;
       }
-      if ((val & 0xFFFFFFFF) == 0) {
+      if ((sval & 0xFFFFFFFF) == 0) {
         PS |= FLAGZ;
       }
-      if ((val < (1 << 15)) || (val >= ((1 << 15) - 1))) {
+      if ((sval < (1 << 15)) || (sval >= ((1 << 15) - 1))) {
         PS |= FLAGC;
       }
       return;
@@ -404,11 +406,11 @@ void step() {
       if (val2 & 040) {
         val2 = (077 ^ val2) + 1;
         if (val1 & 0100000) {
-          val = 0xFFFF ^ (0xFFFF >> val2);
-          val |= val1 >> val2;
+          sval = 0xFFFF ^ (0xFFFF >> val2);
+          sval |= val1 >> val2;
         }
         else {
-          val = val1 >> val2;
+          sval = val1 >> val2;
         }
         int32_t shift;
         shift = 1 << (val2 - 1);
@@ -417,21 +419,21 @@ void step() {
         }
       }
       else {
-        val = (val1 << val2) & 0xFFFF;
+        sval = (val1 << val2) & 0xFFFF;
         int32_t shift;
         shift = 1 << (16 - val2);
         if (val1 & shift) {
           PS |= FLAGC;
         }
       }
-      R[s & 7] = val;
-      if (val == 0) {
+      R[s & 7] = sval;
+      if (sval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0100000) {
+      if (sval & 0100000) {
         PS |= FLAGN;
       }
-      if (xor32(val & 0100000, val1 & 0100000)) {
+      if (xor32(sval & 0100000, val1 & 0100000)) {
         PS |= FLAGV;
       }
       return;
@@ -444,31 +446,31 @@ void step() {
       if (val2 & 040) {
         val2 = (077 ^ val2) + 1;
         if (val1 & 0x80000000) {
-          val = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2);
-          val |= val1 >> val2;
+          sval = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2);
+          sval |= val1 >> val2;
         }
         else {
-          val = val1 >> val2;
+          sval = val1 >> val2;
         }
         if (val1 & (1 << (val2 - 1))) {
           PS |= FLAGC;
         }
       }
       else {
-        val = (val1 << val2) & 0xFFFFFFFF;
+        sval = (val1 << val2) & 0xFFFFFFFF;
         if (val1 & (1 << (32 - val2))) {
           PS |= FLAGC;
         }
       }
-      R[s & 7] = (val >> 16) & 0xFFFF;
-      R[(s & 7) | 1] = val & 0xFFFF;
-      if (val == 0) {
+      R[s & 7] = (sval >> 16) & 0xFFFF;
+      R[(s & 7) | 1] = sval & 0xFFFF;
+      if (sval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x80000000) {
+      if (sval & 0x80000000) {
         PS |= FLAGN;
       }
-      if (xor32(val & 0x80000000, val1 & 0x80000000)) {
+      if (xor32(sval & 0x80000000, val1 & 0x80000000)) {
         PS |= FLAGV;
       }
       return;
@@ -476,15 +478,15 @@ void step() {
       val1 = R[s & 7];
       da = aget(d, 2);
       val2 = memread(da, 2);
-      val = val1 ^ val2;
+      uval = val1 ^ val2;
       PS &= 0xFFF1;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x8000) {
+      if (uval & 0x8000) {
         PS |= FLAGZ;
       }
-      memwrite(da, 2, val);
+      memwrite(da, 2, uval);
       return;
     case 0077000: // SOB
       R[s & 7]--;
@@ -504,216 +506,216 @@ void step() {
       return;
     case 0005100: // COM
       da = aget(d, l);
-      val = memread(da, l) ^ max;
+      uval = memread(da, l) ^ max;
       PS &= 0xFFF0;
       PS |= FLAGC;
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0005200: // INC
       da = aget(d, l);
-      val = (memread(da, l) + 1) & max;
+      uval = (memread(da, l) + 1) & max;
       PS &= 0xFFF1;
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN | FLAGV;
       }
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0005300: // DEC
       da = aget(d, l);
-      val = (memread(da, l) - 1) & max;
+      uval = (memread(da, l) - 1) & max;
       PS &= 0xFFF1;
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      if (val == maxp) {
+      if (uval == maxp) {
         PS |= FLAGV;
       }
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0005400: // NEG
       da = aget(d, l);
-      val = (-memread(da, l)) & max;
+      sval = (-memread(da, l)) & max;
       PS &= 0xFFF0;
-      if (val & msb) {
+      if (sval & msb) {
         PS |= FLAGN;
       }
-      if (val == 0) {
+      if (sval == 0) {
         PS |= FLAGZ;
       }
       else {
         PS |= FLAGC;
       }
-      if (val == 0x8000) {
+      if (sval == 0x8000) {
         PS |= FLAGV;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, sval);
       return;
     case 0005500: // ADC
       da = aget(d, l);
-      val = memread(da, l);
+      uval = memread(da, l);
       if (PS & FLAGC) {
         PS &= 0xFFF0;
-        if ((val + 1)&msb) {
+        if ((uval + 1)&msb) {
           PS |= FLAGN;
         }
-        if (val == max) {
+        if (uval == max) {
           PS |= FLAGZ;
         }
-        if (val == 0077777) {
+        if (uval == 0077777) {
           PS |= FLAGV;
         }
-        if (val == 0177777) {
+        if (uval == 0177777) {
           PS |= FLAGC;
         }
-        memwrite(da, l, (val + 1)&max);
+        memwrite(da, l, (uval + 1)&max);
       }
       else {
         PS &= 0xFFF0;
-        if (val & msb) {
+        if (uval & msb) {
           PS |= FLAGN;
         }
-        if (val == 0) {
+        if (uval == 0) {
           PS |= FLAGZ;
         }
       }
       return;
     case 0005600: // SBC
       da = aget(d, l);
-      val = memread(da, l);
+      sval = memread(da, l);
       if (PS & FLAGC) {
         PS &= 0xFFF0;
-        if ((val - 1)&msb) {
+        if ((sval - 1)&msb) {
           PS |= FLAGN;
         }
-        if (val == 1) {
+        if (sval == 1) {
           PS |= FLAGZ;
         }
-        if (val) {
+        if (sval) {
           PS |= FLAGC;
         }
-        if (val == 0100000) {
+        if (sval == 0100000) {
           PS |= FLAGV;
         }
-        memwrite(da, l, (val - 1)&max);
+        memwrite(da, l, (sval - 1)&max);
       }
       else {
         PS &= 0xFFF0;
-        if (val & msb) {
+        if (sval & msb) {
           PS |= FLAGN;
         }
-        if (val == 0) {
+        if (sval == 0) {
           PS |= FLAGZ;
         }
-        if (val == 0100000) {
+        if (sval == 0100000) {
           PS |= FLAGV;
         }
         PS |= FLAGC;
       }
       return;
     case 0005700: // TST
-      val = memread(aget(d, l), l);
+      uval = memread(aget(d, l), l);
       PS &= 0xFFF0;
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN;
       }
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
       return;
     case 0006000: // ROR
       da = aget(d, l);
-      val = memread(da, l);
+      sval = memread(da, l);
       if (PS & FLAGC) {
-        val |= max + 1;
+        sval |= max + 1;
       }
       PS &= 0xFFF0;
-      if (val & 1) {
+      if (sval & 1) {
         PS |= FLAGC;
       }
-      if (val & (max + 1)) {
+      if (sval & (max + 1)) {
         PS |= FLAGN;
       }
-      if (!(val & max)) {
+      if (!(sval & max)) {
         PS |= FLAGZ;
       }
-      if (xor16(val & 1, val & (max + 1))) {
+      if (xor16(sval & 1, sval & (max + 1))) {
         PS |= FLAGV;
       }
-      val >>= 1;
-      memwrite(da, l, val);
+      sval >>= 1;
+      memwrite(da, l, sval);
       return;
     case 0006100: // ROL
       da = aget(d, l);
-      val = memread(da, l) << 1;
+      sval = memread(da, l) << 1;
       if (PS & FLAGC) {
-        val |= 1;
+        sval |= 1;
       }
       PS &= 0xFFF0;
-      if (val & (max + 1)) {
+      if (sval & (max + 1)) {
         PS |= FLAGC;
       }
-      if (val & msb) {
+      if (sval & msb) {
         PS |= FLAGN;
       }
-      if (!(val & max)) {
+      if (!(sval & max)) {
         PS |= FLAGZ;
       }
-      if ((val ^ (val >> 1))&msb) {
+      if ((sval ^ (sval >> 1))&msb) {
         PS |= FLAGV;
       }
-      val &= max;
-      memwrite(da, l, val);
+      sval &= max;
+      memwrite(da, l, sval);
       return;
     case 0006200: // ASR
       da = aget(d, l);
-      val = memread(da, l);
+      uval = memread(da, l);
       PS &= 0xFFF0;
-      if (val & 1) {
+      if (uval & 1) {
         PS |= FLAGC;
       }
-      if (val & msb) {
+      if (uval & msb) {
         PS |= FLAGN
               ;
       }
-      if (xor16(val & msb, val & 1)) {
+      if (xor16(uval & msb, uval & 1)) {
         PS |= FLAGV;
       }
-      val = (val & msb) | (val >> 1);
-      if (val == 0) {
+      uval = (uval & msb) | (uval >> 1);
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0006300: // ASL
       da = aget(d, l);
-      val = memread(da, l);
+      sval = memread(da, l);
       PS &= 0xFFF0;
-      if (val & msb) {
+      if (sval & msb) {
         PS |= FLAGC;
       }
-      if (val & (msb >> 1)) {
+      if (sval & (msb >> 1)) {
         PS |= FLAGN;
       }
-      if ((val ^ (val << 1))&msb) {
+      if ((sval ^ (sval << 1))&msb) {
         PS |= FLAGV;
       }
-      val = (val << 1) & max;
-      if (val == 0) {
+      sval = (sval << 1) & max;
+      if (sval == 0) {
         PS |= FLAGZ;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, sval);
       return;
     case 0006700: // SXT
       da = aget(d, l);
@@ -728,44 +730,44 @@ void step() {
   }
   switch (instr & 0177700) {
     case 0000100: // JMP
-      val = aget(d, 2);
-      if (isReg(val)) {
+      uval = aget(d, 2);
+      if (isReg(uval)) {
         Serial.println(F("JMP called with register dest"));
         panic();
       }
-      R[7] = val;
+      R[7] = uval;
       return;
     case 0000300: // SWAB
       da = aget(d, l);
-      val = memread(da, l);
-      val = ((val >> 8) | (val << 8)) & 0xFFFF;
+      uval = memread(da, l);
+      uval = ((uval >> 8) | (uval << 8)) & 0xFFFF;
       PS &= 0xFFF0;
-      if (val & 0xFF) {
+      if (uval & 0xFF) {
         PS |= FLAGZ;
       }
-      if (val & 0x80) {
+      if (uval & 0x80) {
         PS |= FLAGN;
       }
-      memwrite(da, l, val);
+      memwrite(da, l, uval);
       return;
     case 0006400: // MARK
       R[6] = R[7] + ((instr & 077) << 1);
       R[7] = R[5];
-      R[5] = (int32_t)pop();
+      R[5] = pop();
       break;
     case 0006500: // MFPI
       da = aget(d, 2);
       if (da == 0170006) {
         // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
         if (curuser == prevuser) {
-          val = R[6];
+          uval = R[6];
         }
         else {
           if (prevuser) {
-            val = USP;
+            uval = USP;
           }
           else {
-            val = KSP;
+            uval = KSP;
           }
         }
       }
@@ -774,31 +776,31 @@ void step() {
         panic();
       }
       else {
-        val = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
+        uval = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
       }
-      push(val);
+      push(uval);
       PS &= 0xFFF0;
       PS |= FLAGC;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x8000) {
+      if (uval & 0x8000) {
         PS |= FLAGN;
       }
       return;
     case 0006600: // MTPI
       da = aget(d, 2);
-      val = pop();
+      uval = pop();
       if (da == 0170006) {
         if (curuser == prevuser) {
-          R[6] = val;
+          R[6] = uval;
         }
         else {
           if (prevuser) {
-            USP = val;
+            USP = uval;
           }
           else {
-            KSP = val;
+            KSP = uval;
           }
         }
       }
@@ -806,14 +808,14 @@ void step() {
         Serial.println(F("invalid MTPI instrution")); panic();
       }
       else {
-        unibus::write16(mmu::decode((uint16_t)da, true, prevuser), val);
+        unibus::write16(mmu::decode((uint16_t)da, true, prevuser), uval);
       }
       PS &= 0xFFF0;
       PS |= FLAGC;
-      if (val == 0) {
+      if (uval == 0) {
         PS |= FLAGZ;
       }
-      if (val & 0x8000) {
+      if (uval & 0x8000) {
         PS |= FLAGN;
       }
       return;
@@ -947,12 +949,12 @@ void step() {
 
     case 0000006: // RTT
       R[7] = pop();
-      val = pop();
+      uval = pop();
       if (curuser) {
-        val &= 047;
-        val |= PS & 0177730;
+        uval &= 047;
+        uval |= PS & 0177730;
       }
-      unibus::write16(0777776, val);
+      unibus::write16(0777776, uval);
       return;
     case 0000005: // RESET
       if (curuser) {
