@@ -339,7 +339,7 @@ void step() {
   switch (instr & 0177000) {
     case 0004000: // JSR
       val = aget(d, l);
-      if (val < 0) {
+      if (isReg(val)) {
         Serial.println(F("JSR called on register"));
         panic();
       }
