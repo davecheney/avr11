@@ -22,13 +22,11 @@ void setup(void)
   pinMode(6, OUTPUT); digitalWrite(6, HIGH);
   pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
+  pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11 
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
   // Start the UART
   Serial.begin(19200) ;
   fdevopen(serialWrite, NULL);
-
-  //   SPI.begin();
-  //   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   Serial.println(F("Reset"));
     // Initialize SdFat or print a detailed error message and halt
