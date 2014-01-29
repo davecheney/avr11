@@ -1,7 +1,5 @@
 #include <stdint.h>
-#include <SPI.h>
 #include <SdFat.h>
-#include <SpiRAM.h>
 #include "avr11.h"
 #include "rk05.h"
 #include "cons.h"

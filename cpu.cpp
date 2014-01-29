@@ -53,6 +53,13 @@ static bool isReg(uint16_t a) {
   return (a & 0177770) == 0170000;
 }
 
+static uint16_t memread16(uint16_t a) {
+  if (isReg(a)) {
+    return R[a & 7];
+  }
+  return read16(a);
+}
+
 uint16_t memread(uint16_t a, uint8_t l) {
   if (isReg(a)) {
     uint8_t r = a & 7;
@@ -67,6 +74,14 @@ uint16_t memread(uint16_t a, uint8_t l) {
     return read16(a);
   }
   return read8(a);
+}
+
+static void memwrite16(uint16_t a, uint16_t v) {
+  if (isReg(a)) {
+    R[a & 7] = v;
+  } else {
+    write16(a, v);
+  }
 }
 
 void memwrite(uint16_t a, uint8_t l, uint16_t v) {
@@ -298,9 +313,9 @@ void step() {
   }
   switch (instr & 0170000) {
     case 0060000: // ADD
-      val1 = memread(aget(s, 2), 2);
+      val1 = memread16(aget(s, 2));
       da = aget(d, 2);
-      val2 = memread(da, 2);
+      val2 = memread16(da);
       uval = (val1 + val2) & 0xFFFF;
       PS &= 0xFFF0;
       if (uval == 0) {
@@ -315,12 +330,12 @@ void step() {
       if ((val1 + val2) >= 0xFFFF) {
         PS |= FLAGC;
       }
-      memwrite(da, 2, uval);
+      memwrite16(da, uval);
       return;
     case 0160000: // SUB
-      val1 = memread(aget(s, 2), 2);
+      val1 = memread16(aget(s, 2));
       da = aget(d, 2);
-      val2 = memread(da, 2);
+      val2 = memread16(da);
       uval = (val2 - val1) & 0xFFFF;
       PS &= 0xFFF0;
       if (uval == 0) {
@@ -335,7 +350,7 @@ void step() {
       if (val1 > val2) {
         PS |= FLAGC;
       }
-      memwrite(da, 2, uval);
+      memwrite16(da, uval);
       return;
   }
   switch (instr & 0177000) {
@@ -355,7 +370,7 @@ void step() {
         val1 = -((0xFFFF ^ val1) + 1);
       }
       da = aget(d, l);
-      val2 = (int32_t)memread(da, 2);
+      val2 = (int32_t)memread16(da);
       if (val2 & 0x8000) {
         val2 = -((0xFFFF ^ val2) + 1);
       }
@@ -376,7 +391,7 @@ void step() {
     case 0071000: // DIV
       val1 = (R[s & 7] << 16) | (R[(s & 7) | 1]);
       da = aget(d, l);
-      val2 = (int32_t)memread(da, 2);
+      val2 = (int32_t)memread16(da);
       PS &= 0xFFF0;
       if (val2 == 0) {
         PS |= FLAGC;
@@ -401,7 +416,7 @@ void step() {
     case 0072000: // ASH
       val1 = R[s & 7];
       da = aget(d, 2);
-      val2 = (uint32_t)memread(da, 2) & 077;
+      val2 = (uint32_t)memread16(da) & 077;
       PS &= 0xFFF0;
       if (val2 & 040) {
         val2 = (077 ^ val2) + 1;
@@ -440,7 +455,7 @@ void step() {
     case 0073000: // ASHC
       val1 = R[s & 7] << 16 | R[(s & 7) | 1];
       da = aget(d, 2);
-      val2 = (uint32_t)memread(da, 2) & 077;
+      val2 = (uint32_t)memread16(da) & 077;
       PS &= 0xFFF0;
 
       if (val2 & 040) {
@@ -477,7 +492,7 @@ void step() {
     case 0074000: // XOR
       val1 = R[s & 7];
       da = aget(d, 2);
-      val2 = memread(da, 2);
+      val2 = memread16(da);
       uval = val1 ^ val2;
       PS &= 0xFFF1;
       if (uval == 0) {
@@ -486,7 +501,7 @@ void step() {
       if (uval & 0x8000) {
         PS |= FLAGZ;
       }
-      memwrite(da, 2, uval);
+      memwrite16(da, uval);
       return;
     case 0077000: // SOB
       R[s & 7]--;
