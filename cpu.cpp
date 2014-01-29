@@ -59,7 +59,7 @@ static uint16_t memread16(uint16_t a) {
   return read16(a);
 }
 
-uint16_t memread(uint16_t a, uint8_t l) {
+static uint16_t memread(uint16_t a, uint8_t l) {
   if (isReg(a)) {
     uint8_t r = a & 7;
     if (l == 2) {
@@ -83,7 +83,7 @@ static void memwrite16(uint16_t a, uint16_t v) {
   }
 }
 
-void memwrite(uint16_t a, uint8_t l, uint16_t v) {
+static void memwrite(uint16_t a, uint8_t l, uint16_t v) {
   if (isReg(a)) {
     uint8_t r = a & 7;
     if (l == 2) {
@@ -189,7 +189,7 @@ void switchmode(bool newm) {
   }
 }
 
-int32_t xor32(int32_t x, int32_t y) {
+static int32_t xor32(int32_t x, int32_t y) {
   int32_t a, b, z;
   a = x & y;
   b = ~x & ~y;
@@ -197,7 +197,7 @@ int32_t xor32(int32_t x, int32_t y) {
   return z;
 }
 
-uint16_t xor16(uint16_t x, uint16_t y) {
+static uint16_t xor16(uint16_t x, uint16_t y) {
   uint16_t a, b, z;
   a = x & y;
   b = ~x & ~y;
@@ -856,6 +856,124 @@ static void SWAB(uint16_t instr) {
   memwrite(da, l, uval);
 }
 
+static void MARK(uint16_t instr) {
+  R[6] = R[7] + ((instr & 077) << 1);
+  R[7] = R[5];
+  R[5] = pop();
+}
+
+static void MFPI(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint16_t da = aget(d, 2);
+  uint16_t uval;
+  if (da == 0170006) {
+    // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
+    if (curuser == prevuser) {
+      uval = R[6];
+    }
+    else {
+      if (prevuser) {
+        uval = USP;
+      }
+      else {
+        uval = KSP;
+      }
+    }
+  }
+  else if (isReg(da)) {
+    Serial.println(F("invalid MFPI instruction"));
+    panic();
+  }
+  else {
+    uval = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
+  }
+  push(uval);
+  PS &= 0xFFF0;
+  PS |= FLAGC;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x8000) {
+    PS |= FLAGN;
+  }
+}
+
+static void MTPI(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint16_t da = aget(d, 2);
+  uint16_t uval = pop();
+  if (da == 0170006) {
+    if (curuser == prevuser) {
+      R[6] = uval;
+    }
+    else {
+      if (prevuser) {
+        USP = uval;
+      }
+      else {
+        KSP = uval;
+      }
+    }
+  }
+  else if (isReg(da)) {
+    Serial.println(F("invalid MTPI instrution")); panic();
+  }
+  else {
+    unibus::write16(mmu::decode((uint16_t)da, true, prevuser), uval);
+  }
+  PS &= 0xFFF0;
+  PS |= FLAGC;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x8000) {
+    PS |= FLAGN;
+  }
+}
+
+static void EMTX(uint16_t instr) {
+  uint16_t uval;
+  if ((instr & 0177400) == 0104000) {
+    uval = 030;
+  }
+  else if ((instr & 0177400) == 0104400) {
+    uval = 034;
+  }
+  else if (instr == 3) {
+    uval = 014;
+  }
+  else {
+    uval = 020;
+  }
+  uint16_t prev = PS;
+  switchmode(false);
+  push(prev);
+  push(R[7]);
+  R[7] = unibus::read16(uval);
+  PS = unibus::read16(uval + 2);
+  if (prevuser) {
+    PS |= (1 << 13) | (1 << 12);
+  }
+}
+
+static void RTT(uint16_t instr) {
+  R[7] = pop();
+  uint16_t uval = pop();
+  if (curuser) {
+    uval &= 047;
+    uval |= PS & 0177730;
+  }
+  unibus::write16(0777776, uval);
+}
+
+static void RESET(uint16_t instr) {
+  if (curuser) {
+    return;
+  }
+  cons::clearterminal();
+  rk11::reset();
+}
+
 void step() {
   uint16_t uval;
   int32_t sval;
@@ -868,7 +986,6 @@ void step() {
   if (PRINTSTATE) printstate();
 
   uint8_t d = instr & 077;
-  uint8_t s = (instr & 07700) >> 6;
   uint8_t l = 2 - (instr >> 15);
   uint8_t o = instr & 0xFF;
   if (l == 2) {
@@ -978,73 +1095,13 @@ void step() {
       SWAB(instr);
       return;
     case 0006400: // MARK
-      R[6] = R[7] + ((instr & 077) << 1);
-      R[7] = R[5];
-      R[5] = pop();
+      MARK(instr);
       break;
     case 0006500: // MFPI
-      da = aget(d, 2);
-      if (da == 0170006) {
-        // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
-        if (curuser == prevuser) {
-          uval = R[6];
-        }
-        else {
-          if (prevuser) {
-            uval = USP;
-          }
-          else {
-            uval = KSP;
-          }
-        }
-      }
-      else if (isReg(da)) {
-        Serial.println(F("invalid MFPI instruction"));
-        panic();
-      }
-      else {
-        uval = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
-      }
-      push(uval);
-      PS &= 0xFFF0;
-      PS |= FLAGC;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x8000) {
-        PS |= FLAGN;
-      }
+      MFPI(instr);
       return;
     case 0006600: // MTPI
-      da = aget(d, 2);
-      uval = pop();
-      if (da == 0170006) {
-        if (curuser == prevuser) {
-          R[6] = uval;
-        }
-        else {
-          if (prevuser) {
-            USP = uval;
-          }
-          else {
-            KSP = uval;
-          }
-        }
-      }
-      else if (isReg(da)) {
-        Serial.println(F("invalid MTPI instrution")); panic();
-      }
-      else {
-        unibus::write16(mmu::decode((uint16_t)da, true, prevuser), uval);
-      }
-      PS &= 0xFFF0;
-      PS |= FLAGC;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x8000) {
-        PS |= FLAGN;
-      }
+      MTPI(instr);
       return;
   }
   if ((instr & 0177770) == 0000200) { // RTS
@@ -1128,27 +1185,7 @@ void step() {
       return;
   }
   if (((instr & 0177000) == 0104000) || (instr == 3) || (instr == 4)) { // EMT TRAP IOT BPT
-    if ((instr & 0177400) == 0104000) {
-      uval = 030;
-    }
-    else if ((instr & 0177400) == 0104400) {
-      uval = 034;
-    }
-    else if (instr == 3) {
-      uval = 014;
-    }
-    else {
-      uval = 020;
-    }
-    prev = PS;
-    switchmode(false);
-    push(prev);
-    push(R[7]);
-    R[7] = unibus::read16(uval);
-    PS = unibus::read16(uval + 2);
-    if (prevuser) {
-      PS |= (1 << 13) | (1 << 12);
-    }
+    EMTX(instr);
     return;
   }
   if ((instr & 0177740) == 0240) { // CL?, SE?
@@ -1160,39 +1197,31 @@ void step() {
     }
     return;
   }
-  switch (instr) {
-    case 0000000: // HALT
+  switch (instr & 7) {
+    case 00: // HALT
       if (curuser) {
         break;
       }
       Serial.println(F("HALT"));
       panic();
-    case 0000001: // WAIT
+    case 01: // WAIT
       if (curuser) {
         break;
       }
       return;
-    case 0000002: // RTI
+    case 02: // RTI
 
-    case 0000006: // RTT
-      R[7] = pop();
-      uval = pop();
-      if (curuser) {
-        uval &= 047;
-        uval |= PS & 0177730;
-      }
-      unibus::write16(0777776, uval);
+    case 06: // RTT
+      RTT(instr);
       return;
-    case 0000005: // RESET
-      if (curuser) {
-        return;
-      }
-      cons::clearterminal();
-      rk11::reset();
-      return;
-    case 0170011: // SETD ; not needed by UNIX, but used; therefore ignored
+    case 05: // RESET
+      RESET(instr);
       return;
   }
+  if (instr == 0170011) { // SETD ; not needed by UNIX, but used; therefore ignored
+    return;
+  }
+
   //fmt.Println(ia, disasm(ia))
   Serial.println("invalid instruction");
   longjmp(trapbuf, INTINVAL);
