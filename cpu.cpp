@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <SdFat.h>
 #include "avr11.h"
 #include "mmu.h"
@@ -206,6 +205,657 @@ uint16_t xor16(uint16_t x, uint16_t y) {
   return z;
 }
 
+static void MOV(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t uval = memread(aget(s, l), l);
+  uint16_t da = aget(d, l);
+  PS &= 0xFFF1;
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if ((isReg(da)) && (l == 1)) {
+    l = 2;
+    if (uval & msb) {
+      uval |= 0xFF00;
+    }
+  }
+  memwrite(da, l, uval);
+}
+
+static void CMP(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t val1 = memread(aget(s, l), l);
+  uint16_t da = aget(d, l);
+  uint16_t val2 = memread(da, l);
+  int32_t sval = (val1 - val2) & max;
+  PS &= 0xFFF0;
+  if (sval == 0) {
+    PS |= FLAGZ;
+  }
+  if (sval & msb) {
+    PS |= FLAGN;
+  }
+  if (((val1 ^ val2)&msb) && (!((val2 ^ sval)&msb))) {
+    PS |= FLAGV;
+  }
+  if (val1 < val2) {
+    PS |= FLAGC;
+  }
+}
+
+static void BIT(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t val1 = memread(aget(s, l), l);
+  uint16_t da = aget(d, l);
+  uint16_t val2 = memread(da, l);
+  uint16_t uval = val1 & val2;
+  PS &= 0xFFF1;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+}
+
+static void BIC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t val1 = memread(aget(s, l), l);
+  uint16_t da = aget(d, l);
+  uint16_t val2 = memread(da, l);
+  uint16_t uval = (max ^ val1) & val2;
+  PS &= 0xFFF1;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  memwrite(da, l, uval);
+}
+
+static void BIS(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t val1 = memread(aget(s, l), l);
+  uint16_t da = aget(d, l);
+  uint16_t val2 = memread(da, l);
+  uint16_t uval = val1 | val2;
+  PS &= 0xFFF1;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  memwrite(da, l, uval);
+}
+
+static void ADD(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t val1 = memread16(aget(s, 2));
+  uint16_t da = aget(d, 2);
+  uint16_t val2 = memread16(da);
+  uint16_t uval = (val1 + val2) & 0xFFFF;
+  PS &= 0xFFF0;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x8000) {
+    PS |= FLAGN;
+  }
+  if (!((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000)) {
+    PS |= FLAGV;
+  }
+  if ((val1 + val2) >= 0xFFFF) {
+    PS |= FLAGC;
+  }
+  memwrite16(da, uval);
+}
+
+static void SUB(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t val1 = memread16(aget(s, 2));
+  uint16_t da = aget(d, 2);
+  uint16_t val2 = memread16(da);
+  uint16_t uval = (val2 - val1) & 0xFFFF;
+  PS &= 0xFFF0;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x8000) {
+    PS |= FLAGN;
+  }
+  if (((val1 ^ val2) & 0x8000) && (!((val2 ^ uval) & 0x8000))) {
+    PS |= FLAGV;
+  }
+  if (val1 > val2) {
+    PS |= FLAGC;
+  }
+  memwrite16(da, uval);
+}
+
+static void JSR(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t uval = aget(d, l);
+  if (isReg(uval)) {
+    Serial.println(F("JSR called on register"));
+    panic();
+  }
+  push(R[s & 7]);
+  R[s & 7] = R[7];
+  R[7] = uval;
+}
+
+static void MUL(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  int32_t val1 = R[s & 7];
+  if (val1 & 0x8000) {
+    val1 = -((0xFFFF ^ val1) + 1);
+  }
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t da = aget(d, l);
+  int32_t val2 = (int32_t)memread16(da);
+  if (val2 & 0x8000) {
+    val2 = -((0xFFFF ^ val2) + 1);
+  }
+  int32_t sval = val1 * val2;
+  R[s & 7] = (sval & 0xFFFF0000) >> 16;
+  R[(s & 7) | 1] = sval & 0xFFFF;
+  PS &= 0xFFF0;
+  if (sval & 0x80000000) {
+    PS |= FLAGN;
+  }
+  if ((sval & 0xFFFFFFFF) == 0) {
+    PS |= FLAGZ;
+  }
+  if ((sval < (1 << 15)) || (sval >= ((1 << 15) - 1))) {
+    PS |= FLAGC;
+  }
+}
+
+static void DIV(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  int32_t val1 = (R[s & 7] << 16) | (R[(s & 7) | 1]);
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t da = aget(d, l);
+  int32_t val2 = (int32_t)memread16(da);
+  PS &= 0xFFF0;
+  if (val2 == 0) {
+    PS |= FLAGC;
+    return;
+  }
+  if ((val1 / val2) >= 0x10000) {
+    PS |= FLAGV;
+    return;
+  }
+  R[s & 7] = (val1 / val2) & 0xFFFF;
+  R[(s & 7) | 1] = (val1 % val2) & 0xFFFF;
+  if (R[s & 7] == 0) {
+    PS |= FLAGZ;
+  }
+  if (R[s & 7] & 0100000) {
+    PS |= FLAGN;
+  }
+  if (val1 == 0) {
+    PS |= FLAGV;
+  }
+}
+
+static void ASH(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint16_t val1 = R[s & 7];
+  uint16_t da = aget(d, 2);
+  uint16_t val2 = memread16(da) & 077;
+  PS &= 0xFFF0;
+  int32_t sval;
+  if (val2 & 040) {
+    val2 = (077 ^ val2) + 1;
+    if (val1 & 0100000) {
+      sval = 0xFFFF ^ (0xFFFF >> val2);
+      sval |= val1 >> val2;
+    }
+    else {
+      sval = val1 >> val2;
+    }
+    int32_t shift;
+    shift = 1 << (val2 - 1);
+    if (val1 & shift) {
+      PS |= FLAGC;
+    }
+  }
+  else {
+    sval = (val1 << val2) & 0xFFFF;
+    int32_t shift;
+    shift = 1 << (16 - val2);
+    if (val1 & shift) {
+      PS |= FLAGC;
+    }
+  }
+  R[s & 7] = sval;
+  if (sval == 0) {
+    PS |= FLAGZ;
+  }
+  if (sval & 0100000) {
+    PS |= FLAGN;
+  }
+  if (xor32(sval & 0100000, val1 & 0100000)) {
+    PS |= FLAGV;
+  }
+}
+
+static void ASHC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint16_t val1 = R[s & 7] << 16 | R[(s & 7) | 1];
+  uint16_t da = aget(d, 2);
+  uint16_t val2 = memread16(da) & 077;
+  PS &= 0xFFF0;
+  int32_t sval;
+  if (val2 & 040) {
+    val2 = (077 ^ val2) + 1;
+    if (val1 & 0x80000000) {
+      sval = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2);
+      sval |= val1 >> val2;
+    }
+    else {
+      sval = val1 >> val2;
+    }
+    if (val1 & (1 << (val2 - 1))) {
+      PS |= FLAGC;
+    }
+  }
+  else {
+    sval = (val1 << val2) & 0xFFFFFFFF;
+    if (val1 & (1 << (32 - val2))) {
+      PS |= FLAGC;
+    }
+  }
+  R[s & 7] = (sval >> 16) & 0xFFFF;
+  R[(s & 7) | 1] = sval & 0xFFFF;
+  if (sval == 0) {
+    PS |= FLAGZ;
+  }
+  if (sval & 0x80000000) {
+    PS |= FLAGN;
+  }
+  if (xor32(sval & 0x80000000, val1 & 0x80000000)) {
+    PS |= FLAGV;
+  }
+}
+
+static void XOR(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint16_t val1 = R[s & 7];
+  uint16_t da = aget(d, 2);
+  uint16_t val2 = memread16(da);
+  uint16_t uval = val1 ^ val2;
+  PS &= 0xFFF1;
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x8000) {
+    PS |= FLAGZ;
+  }
+  memwrite16(da, uval);
+}
+
+static void SOB(uint16_t instr) {
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t o = instr & 0xFF;
+  R[s & 7]--;
+  if (R[s & 7]) {
+    o &= 077;
+    o <<= 1;
+    R[7] -= o;
+  }
+}
+
+static void CLR(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  PS &= 0xFFF0;
+  PS |= FLAGZ;
+  memwrite(aget(d, l), l, 0);
+}
+
+static void COM(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t s = (instr & 07700) >> 6;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  uint16_t uval = memread(da, l) ^ max;
+  PS &= 0xFFF0;
+  PS |= FLAGC;
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  memwrite(da, l, uval);
+}
+
+static void INC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  uint16_t uval = (memread(da, l) + 1) & max;
+  PS &= 0xFFF1;
+  if (uval & msb) {
+    PS |= FLAGN | FLAGV;
+  }
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  memwrite(da, l, uval);
+}
+
+static void _DEC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t maxp = l == 2 ? 0x7FFF : 0x7f;
+  uint16_t da = aget(d, l);
+  uint16_t uval = (memread(da, l) - 1) & max;
+  PS &= 0xFFF1;
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  if (uval == maxp) {
+    PS |= FLAGV;
+  }
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  memwrite(da, l, uval);
+}
+
+static void NEG(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  int32_t sval = (-memread(da, l)) & max;
+  PS &= 0xFFF0;
+  if (sval & msb) {
+    PS |= FLAGN;
+  }
+  if (sval == 0) {
+    PS |= FLAGZ;
+  }
+  else {
+    PS |= FLAGC;
+  }
+  if (sval == 0x8000) {
+    PS |= FLAGV;
+  }
+  memwrite(da, l, sval);
+}
+
+static void _ADC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  uint16_t uval = memread(da, l);
+  if (PS & FLAGC) {
+    PS &= 0xFFF0;
+    if ((uval + 1)&msb) {
+      PS |= FLAGN;
+    }
+    if (uval == max) {
+      PS |= FLAGZ;
+    }
+    if (uval == 0077777) {
+      PS |= FLAGV;
+    }
+    if (uval == 0177777) {
+      PS |= FLAGC;
+    }
+    memwrite(da, l, (uval + 1)&max);
+  }
+  else {
+    PS &= 0xFFF0;
+    if (uval & msb) {
+      PS |= FLAGN;
+    }
+    if (uval == 0) {
+      PS |= FLAGZ;
+    }
+  }
+}
+
+static void SBC(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  int32_t sval = memread(da, l);
+  if (PS & FLAGC) {
+    PS &= 0xFFF0;
+    if ((sval - 1)&msb) {
+      PS |= FLAGN;
+    }
+    if (sval == 1) {
+      PS |= FLAGZ;
+    }
+    if (sval) {
+      PS |= FLAGC;
+    }
+    if (sval == 0100000) {
+      PS |= FLAGV;
+    }
+    memwrite(da, l, (sval - 1)&max);
+  }
+  else {
+    PS &= 0xFFF0;
+    if (sval & msb) {
+      PS |= FLAGN;
+    }
+    if (sval == 0) {
+      PS |= FLAGZ;
+    }
+    if (sval == 0100000) {
+      PS |= FLAGV;
+    }
+    PS |= FLAGC;
+  }
+}
+
+static void TST(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t uval = memread(aget(d, l), l);
+  PS &= 0xFFF0;
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+}
+
+static void ROR(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  int32_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  int32_t sval = memread(da, l);
+  if (PS & FLAGC) {
+    sval |= max + 1;
+  }
+  PS &= 0xFFF0;
+  if (sval & 1) {
+    PS |= FLAGC;
+  }
+  // watch out for integer wrap around
+  if (sval & (max + 1)) {
+    PS |= FLAGN;
+  }
+  if (!(sval & max)) {
+    PS |= FLAGZ;
+  }
+  if (xor16(sval & 1, sval & (max + 1))) {
+    PS |= FLAGV;
+  }
+  sval >>= 1;
+  memwrite(da, l, sval);
+}
+
+static void ROL(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  int32_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  int32_t sval = memread(da, l) << 1;
+  if (PS & FLAGC) {
+    sval |= 1;
+  }
+  PS &= 0xFFF0;
+  if (sval & (max + 1)) {
+    PS |= FLAGC;
+  }
+  if (sval & msb) {
+    PS |= FLAGN;
+  }
+  if (!(sval & max)) {
+    PS |= FLAGZ;
+  }
+  if ((sval ^ (sval >> 1))&msb) {
+    PS |= FLAGV;
+  }
+  sval &= max;
+  memwrite(da, l, sval);
+}
+
+static void ASR(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t da = aget(d, l);
+  uint16_t uval = memread(da, l);
+  PS &= 0xFFF0;
+  if (uval & 1) {
+    PS |= FLAGC;
+  }
+  if (uval & msb) {
+    PS |= FLAGN;
+  }
+  if (xor16(uval & msb, uval & 1)) {
+    PS |= FLAGV;
+  }
+  uval = (uval & msb) | (uval >> 1);
+  if (uval == 0) {
+    PS |= FLAGZ;
+  }
+  memwrite(da, l, uval);
+}
+
+static void ASL(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t msb = l == 2 ? 0x8000 : 0x80;
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  // TODO(dfc) doesn't need to be an sval
+  int32_t sval = memread(da, l);
+  PS &= 0xFFF0;
+  if (sval & msb) {
+    PS |= FLAGC;
+  }
+  if (sval & (msb >> 1)) {
+    PS |= FLAGN;
+  }
+  if ((sval ^ (sval << 1))&msb) {
+    PS |= FLAGV;
+  }
+  sval = (sval << 1) & max;
+  if (sval == 0) {
+    PS |= FLAGZ;
+  }
+  memwrite(da, l, sval);
+}
+
+static void SXT(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t max = l == 2 ? 0xFFFF : 0xff;
+  uint16_t da = aget(d, l);
+  if (PS & FLAGN) {
+    memwrite(da, l, max);
+  }
+  else {
+    PS |= FLAGZ;
+    memwrite(da, l, 0);
+  }
+}
+
+static void JMP(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint16_t uval = aget(d, 2);
+  if (isReg(uval)) {
+    Serial.println(F("JMP called with register dest"));
+    panic();
+  }
+  R[7] = uval;
+}
+
+static void SWAB(uint16_t instr) {
+  uint8_t d = instr & 077;
+  uint8_t l = 2 - (instr >> 15);
+  uint16_t da = aget(d, l);
+  uint16_t uval = memread(da, l);
+  uval = ((uval >> 8) | (uval << 8)) & 0xFFFF;
+  PS &= 0xFFF0;
+  if (uval & 0xFF) {
+    PS |= FLAGZ;
+  }
+  if (uval & 0x80) {
+    PS |= FLAGN;
+  }
+  memwrite(da, l, uval);
+}
+
 void step() {
   uint16_t uval;
   int32_t sval;
@@ -233,537 +883,99 @@ void step() {
   }
   switch (instr & 0070000) {
     case 0010000: // MOV
-      uval = memread(aget(s, l), l);
-      da = aget(d, l);
-      PS &= 0xFFF1;
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if ((isReg(da)) && (l == 1)) {
-        l = 2;
-        if (uval & msb) {
-          uval |= 0xFF00;
-        }
-      }
-      memwrite(da, l, uval);
+      MOV(instr);
       return;
     case 0020000: // CMP
-      val1 = memread(aget(s, l), l);
-      da = aget(d, l);
-      val2 = memread(da, l);
-      sval = (val1 - val2) & max;
-      PS &= 0xFFF0;
-      if (sval == 0) {
-        PS |= FLAGZ;
-      }
-      if (sval & msb) {
-        PS |= FLAGN;
-      }
-      if (((val1 ^ val2)&msb) && (!((val2 ^ sval)&msb))) {
-        PS |= FLAGV;
-      }
-      if (val1 < val2) {
-        PS |= FLAGC;
-      }
+      CMP(instr);
       return;
     case 0030000: // BIT
-      val1 = memread(aget(s, l), l);
-      da = aget(d, l);
-      val2 = memread(da, l);
-      uval = val1 & val2;
-      PS &= 0xFFF1;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
+      BIT(instr);
       return;
     case 0040000: // BIC
-      val1 = memread(aget(s, l), l);
-      da = aget(d, l);
-      val2 = memread(da, l);
-      uval = (max ^ val1) & val2;
-      PS &= 0xFFF1;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      memwrite(da, l, uval);
+      BIC(instr);
       return;
     case 0050000: // BIS
-      val1 = memread(aget(s, l), l);
-      da = aget(d, l);
-      val2 = memread(da, l);
-      uval = val1 | val2;
-      PS &= 0xFFF1;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      memwrite(da, l, uval);
+      BIS(instr);
       return;
   }
   switch (instr & 0170000) {
     case 0060000: // ADD
-      val1 = memread16(aget(s, 2));
-      da = aget(d, 2);
-      val2 = memread16(da);
-      uval = (val1 + val2) & 0xFFFF;
-      PS &= 0xFFF0;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x8000) {
-        PS |= FLAGN;
-      }
-      if (!((val1 ^ val2) & 0x8000) && ((val2 ^ uval) & 0x8000)) {
-        PS |= FLAGV;
-      }
-      if ((val1 + val2) >= 0xFFFF) {
-        PS |= FLAGC;
-      }
-      memwrite16(da, uval);
+      ADD(instr);
       return;
     case 0160000: // SUB
-      val1 = memread16(aget(s, 2));
-      da = aget(d, 2);
-      val2 = memread16(da);
-      uval = (val2 - val1) & 0xFFFF;
-      PS &= 0xFFF0;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x8000) {
-        PS |= FLAGN;
-      }
-      if (((val1 ^ val2) & 0x8000) && (!((val2 ^ uval) & 0x8000))) {
-        PS |= FLAGV;
-      }
-      if (val1 > val2) {
-        PS |= FLAGC;
-      }
-      memwrite16(da, uval);
+      SUB(instr);
       return;
   }
   switch (instr & 0177000) {
     case 0004000: // JSR
-      uval = aget(d, l);
-      if (isReg(uval)) {
-        Serial.println(F("JSR called on register"));
-        panic();
-      }
-      push(R[s & 7]);
-      R[s & 7] = R[7];
-      R[7] = uval;
+      JSR(instr);
       return;
     case 0070000: // MUL
-      val1 = R[s & 7];
-      if (val1 & 0x8000) {
-        val1 = -((0xFFFF ^ val1) + 1);
-      }
-      da = aget(d, l);
-      val2 = (int32_t)memread16(da);
-      if (val2 & 0x8000) {
-        val2 = -((0xFFFF ^ val2) + 1);
-      }
-      sval = val1 * val2;
-      R[s & 7] = (sval & 0xFFFF0000) >> 16;
-      R[(s & 7) | 1] = sval & 0xFFFF;
-      PS &= 0xFFF0;
-      if (sval & 0x80000000) {
-        PS |= FLAGN;
-      }
-      if ((sval & 0xFFFFFFFF) == 0) {
-        PS |= FLAGZ;
-      }
-      if ((sval < (1 << 15)) || (sval >= ((1 << 15) - 1))) {
-        PS |= FLAGC;
-      }
+      MUL(instr);
       return;
     case 0071000: // DIV
-      val1 = (R[s & 7] << 16) | (R[(s & 7) | 1]);
-      da = aget(d, l);
-      val2 = (int32_t)memread16(da);
-      PS &= 0xFFF0;
-      if (val2 == 0) {
-        PS |= FLAGC;
-        return;
-      }
-      if ((val1 / val2) >= 0x10000) {
-        PS |= FLAGV;
-        return;
-      }
-      R[s & 7] = (val1 / val2) & 0xFFFF;
-      R[(s & 7) | 1] = (val1 % val2) & 0xFFFF;
-      if (R[s & 7] == 0) {
-        PS |= FLAGZ;
-      }
-      if (R[s & 7] & 0100000) {
-        PS |= FLAGN;
-      }
-      if (val1 == 0) {
-        PS |= FLAGV;
-      }
+      DIV(instr);
       return;
     case 0072000: // ASH
-      val1 = R[s & 7];
-      da = aget(d, 2);
-      val2 = (uint32_t)memread16(da) & 077;
-      PS &= 0xFFF0;
-      if (val2 & 040) {
-        val2 = (077 ^ val2) + 1;
-        if (val1 & 0100000) {
-          sval = 0xFFFF ^ (0xFFFF >> val2);
-          sval |= val1 >> val2;
-        }
-        else {
-          sval = val1 >> val2;
-        }
-        int32_t shift;
-        shift = 1 << (val2 - 1);
-        if (val1 & shift) {
-          PS |= FLAGC;
-        }
-      }
-      else {
-        sval = (val1 << val2) & 0xFFFF;
-        int32_t shift;
-        shift = 1 << (16 - val2);
-        if (val1 & shift) {
-          PS |= FLAGC;
-        }
-      }
-      R[s & 7] = sval;
-      if (sval == 0) {
-        PS |= FLAGZ;
-      }
-      if (sval & 0100000) {
-        PS |= FLAGN;
-      }
-      if (xor32(sval & 0100000, val1 & 0100000)) {
-        PS |= FLAGV;
-      }
+      ASH(instr);
       return;
     case 0073000: // ASHC
-      val1 = R[s & 7] << 16 | R[(s & 7) | 1];
-      da = aget(d, 2);
-      val2 = (uint32_t)memread16(da) & 077;
-      PS &= 0xFFF0;
-
-      if (val2 & 040) {
-        val2 = (077 ^ val2) + 1;
-        if (val1 & 0x80000000) {
-          sval = 0xFFFFFFFF ^ (0xFFFFFFFF >> val2);
-          sval |= val1 >> val2;
-        }
-        else {
-          sval = val1 >> val2;
-        }
-        if (val1 & (1 << (val2 - 1))) {
-          PS |= FLAGC;
-        }
-      }
-      else {
-        sval = (val1 << val2) & 0xFFFFFFFF;
-        if (val1 & (1 << (32 - val2))) {
-          PS |= FLAGC;
-        }
-      }
-      R[s & 7] = (sval >> 16) & 0xFFFF;
-      R[(s & 7) | 1] = sval & 0xFFFF;
-      if (sval == 0) {
-        PS |= FLAGZ;
-      }
-      if (sval & 0x80000000) {
-        PS |= FLAGN;
-      }
-      if (xor32(sval & 0x80000000, val1 & 0x80000000)) {
-        PS |= FLAGV;
-      }
+      ASHC(instr);
       return;
     case 0074000: // XOR
-      val1 = R[s & 7];
-      da = aget(d, 2);
-      val2 = memread16(da);
-      uval = val1 ^ val2;
-      PS &= 0xFFF1;
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x8000) {
-        PS |= FLAGZ;
-      }
-      memwrite16(da, uval);
+      XOR(instr);
       return;
     case 0077000: // SOB
-      R[s & 7]--;
-      if (R[s & 7]) {
-        o &= 077;
-        o <<= 1;
-        R[7] -= o;
-      }
+      SOB(instr);
       return;
   }
   switch (instr & 0077700) {
     case 0005000: // CLR
-      PS &= 0xFFF0;
-      PS |= FLAGZ;
-      da = aget(d, l);
-      memwrite(da, l, 0);
+      CLR(instr);
       return;
     case 0005100: // COM
-      da = aget(d, l);
-      uval = memread(da, l) ^ max;
-      PS &= 0xFFF0;
-      PS |= FLAGC;
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      memwrite(da, l, uval);
+      COM(instr);
       return;
     case 0005200: // INC
-      da = aget(d, l);
-      uval = (memread(da, l) + 1) & max;
-      PS &= 0xFFF1;
-      if (uval & msb) {
-        PS |= FLAGN | FLAGV;
-      }
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      memwrite(da, l, uval);
+      INC(instr);
       return;
     case 0005300: // DEC
-      da = aget(d, l);
-      uval = (memread(da, l) - 1) & max;
-      PS &= 0xFFF1;
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      if (uval == maxp) {
-        PS |= FLAGV;
-      }
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      memwrite(da, l, uval);
+      _DEC(instr);
       return;
     case 0005400: // NEG
-      da = aget(d, l);
-      sval = (-memread(da, l)) & max;
-      PS &= 0xFFF0;
-      if (sval & msb) {
-        PS |= FLAGN;
-      }
-      if (sval == 0) {
-        PS |= FLAGZ;
-      }
-      else {
-        PS |= FLAGC;
-      }
-      if (sval == 0x8000) {
-        PS |= FLAGV;
-      }
-      memwrite(da, l, sval);
+      NEG(instr);
       return;
     case 0005500: // ADC
-      da = aget(d, l);
-      uval = memread(da, l);
-      if (PS & FLAGC) {
-        PS &= 0xFFF0;
-        if ((uval + 1)&msb) {
-          PS |= FLAGN;
-        }
-        if (uval == max) {
-          PS |= FLAGZ;
-        }
-        if (uval == 0077777) {
-          PS |= FLAGV;
-        }
-        if (uval == 0177777) {
-          PS |= FLAGC;
-        }
-        memwrite(da, l, (uval + 1)&max);
-      }
-      else {
-        PS &= 0xFFF0;
-        if (uval & msb) {
-          PS |= FLAGN;
-        }
-        if (uval == 0) {
-          PS |= FLAGZ;
-        }
-      }
+      _ADC(instr);
       return;
     case 0005600: // SBC
-      da = aget(d, l);
-      sval = memread(da, l);
-      if (PS & FLAGC) {
-        PS &= 0xFFF0;
-        if ((sval - 1)&msb) {
-          PS |= FLAGN;
-        }
-        if (sval == 1) {
-          PS |= FLAGZ;
-        }
-        if (sval) {
-          PS |= FLAGC;
-        }
-        if (sval == 0100000) {
-          PS |= FLAGV;
-        }
-        memwrite(da, l, (sval - 1)&max);
-      }
-      else {
-        PS &= 0xFFF0;
-        if (sval & msb) {
-          PS |= FLAGN;
-        }
-        if (sval == 0) {
-          PS |= FLAGZ;
-        }
-        if (sval == 0100000) {
-          PS |= FLAGV;
-        }
-        PS |= FLAGC;
-      }
+      SBC(instr);
       return;
     case 0005700: // TST
-      uval = memread(aget(d, l), l);
-      PS &= 0xFFF0;
-      if (uval & msb) {
-        PS |= FLAGN;
-      }
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
+      TST(instr);
       return;
     case 0006000: // ROR
-      da = aget(d, l);
-      sval = memread(da, l);
-      if (PS & FLAGC) {
-        sval |= max + 1;
-      }
-      PS &= 0xFFF0;
-      if (sval & 1) {
-        PS |= FLAGC;
-      }
-      if (sval & (max + 1)) {
-        PS |= FLAGN;
-      }
-      if (!(sval & max)) {
-        PS |= FLAGZ;
-      }
-      if (xor16(sval & 1, sval & (max + 1))) {
-        PS |= FLAGV;
-      }
-      sval >>= 1;
-      memwrite(da, l, sval);
+      ROR(instr);
       return;
     case 0006100: // ROL
-      da = aget(d, l);
-      sval = memread(da, l) << 1;
-      if (PS & FLAGC) {
-        sval |= 1;
-      }
-      PS &= 0xFFF0;
-      if (sval & (max + 1)) {
-        PS |= FLAGC;
-      }
-      if (sval & msb) {
-        PS |= FLAGN;
-      }
-      if (!(sval & max)) {
-        PS |= FLAGZ;
-      }
-      if ((sval ^ (sval >> 1))&msb) {
-        PS |= FLAGV;
-      }
-      sval &= max;
-      memwrite(da, l, sval);
+      ROL(instr);
       return;
     case 0006200: // ASR
-      da = aget(d, l);
-      uval = memread(da, l);
-      PS &= 0xFFF0;
-      if (uval & 1) {
-        PS |= FLAGC;
-      }
-      if (uval & msb) {
-        PS |= FLAGN
-              ;
-      }
-      if (xor16(uval & msb, uval & 1)) {
-        PS |= FLAGV;
-      }
-      uval = (uval & msb) | (uval >> 1);
-      if (uval == 0) {
-        PS |= FLAGZ;
-      }
-      memwrite(da, l, uval);
+      ASR(instr);
       return;
     case 0006300: // ASL
-      da = aget(d, l);
-      sval = memread(da, l);
-      PS &= 0xFFF0;
-      if (sval & msb) {
-        PS |= FLAGC;
-      }
-      if (sval & (msb >> 1)) {
-        PS |= FLAGN;
-      }
-      if ((sval ^ (sval << 1))&msb) {
-        PS |= FLAGV;
-      }
-      sval = (sval << 1) & max;
-      if (sval == 0) {
-        PS |= FLAGZ;
-      }
-      memwrite(da, l, sval);
+      ASL(instr);
       return;
     case 0006700: // SXT
-      da = aget(d, l);
-      if (PS & FLAGN) {
-        memwrite(da, l, max);
-      }
-      else {
-        PS |= FLAGZ;
-        memwrite(da, l, 0);
-      }
+      SXT(instr);
       return;
   }
   switch (instr & 0177700) {
     case 0000100: // JMP
-      uval = aget(d, 2);
-      if (isReg(uval)) {
-        Serial.println(F("JMP called with register dest"));
-        panic();
-      }
-      R[7] = uval;
+      JMP(instr);
       return;
     case 0000300: // SWAB
-      da = aget(d, l);
-      uval = memread(da, l);
-      uval = ((uval >> 8) | (uval << 8)) & 0xFFFF;
-      PS &= 0xFFF0;
-      if (uval & 0xFF) {
-        PS |= FLAGZ;
-      }
-      if (uval & 0x80) {
-        PS |= FLAGN;
-      }
-      memwrite(da, l, uval);
+      SWAB(instr);
       return;
     case 0006400: // MARK
       R[6] = R[7] + ((instr & 077) << 1);
