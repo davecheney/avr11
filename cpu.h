@@ -40,7 +40,7 @@ void switchmode(bool newm);
 
 void trapat(uint16_t vec);
 void interrupt(uint8_t vec, uint8_t pri);
-void handleinterrupt(uint8_t vec);
+void handleinterrupt();
 
 };
 

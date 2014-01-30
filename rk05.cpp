@@ -33,13 +33,13 @@ uint16_t read16(uint32_t a) {
   }
 }
 
-void rknotready() {
+static void rknotready() {
   digitalWrite(13, 1);
   RKDS &= ~(1 << 6);
   RKCS &= ~(1 << 7);
 }
 
-void rkready() {
+static void rkready() {
   RKDS |= 1 << 6;
   RKCS |= 1 << 7;
   digitalWrite(13, 0);
@@ -48,7 +48,7 @@ void rkready() {
 void rkerror(uint16_t e) {
 }
 
-void step() {
+static void step() {
   again:
   bool w;
   switch ((RKCS & 017) >> 1) {
