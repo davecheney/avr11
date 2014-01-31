@@ -50,7 +50,13 @@ void setup(void)
   Serial.println(F("Ready"));
 }
 
-uint16_t clkcounter;
+union {
+  struct {
+    uint8_t low;
+    uint8_t high;
+  } bytes;
+  uint16_t value;
+} clkcounter;
 uint16_t instcounter;
 
 // On a 16Mhz atmega 2560 this loop costs 21usec per emulated instruction
@@ -67,11 +73,14 @@ static void loop0() {
     if (INSTR_TIMING && (++instcounter == 0)) {
       Serial.println(millis());
     }
-    if (ENABLE_LKS && (++clkcounter & (1 << 15))) {
-      clkcounter = 0;
-      cpu::LKS |= (1 << 7);
-      if (cpu::LKS & (1 << 6)) {
-        cpu::interrupt(INTCLOCK, 6);
+    if (ENABLE_LKS) {
+      ++clkcounter.value;
+      if (clkcounter.bytes.high == 1 << 6) {
+        clkcounter.value = 0;
+        cpu::LKS |= (1 << 7);
+        if (cpu::LKS & (1 << 6)) {
+          cpu::interrupt(INTCLOCK, 6);
+        }
       }
     }
     // costs 3 usec
@@ -80,11 +89,6 @@ static void loop0() {
 }
 
 jmp_buf trapbuf;
-
-union addr {
-  uint8_t bytes[4];
-  uint32_t value;
-} a;
 
 void loop() {
   uint16_t vec = setjmp(trapbuf);
@@ -96,5 +100,5 @@ void loop() {
 
 void panic() {
   printstate();
-  for(;;) delay(1);
+  for (;;) delay(1);
 }

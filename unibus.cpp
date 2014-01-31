@@ -25,8 +25,9 @@ uint16_t read8(const uint32_t a) {
 
 void write8(const uint32_t a, const uint16_t v) {
   if (a < 0760000) {
-    char * aa = (char *)&a;
-    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
+        uint8_t bank = a >> 15;
+//    char * aa = (char *)&a;
+//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
     xmem::setMemoryBank(bank, false);
     charptr[(a & 0x7fff)] = v & 0xff;
     return;
@@ -44,8 +45,9 @@ void write16(uint32_t a, uint16_t v) {
   longjmp(trapbuf, INTBUS);
   }
   if (a < 0760000) {
-    char * aa = (char *)&a;
-    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
+        uint8_t bank = a >> 15;
+//    char * aa = (char *)&a;
+//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
     xmem::setMemoryBank(bank, false);
     intptr[(a & 0x7fff) >> 1] = v;
     return;

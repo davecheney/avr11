@@ -189,31 +189,9 @@ void switchmode(const bool newm) {
   }
 }
 
-<<<<<<< HEAD
-static int32_t xor32(int32_t x, int32_t y) {
-  int32_t a, b, z;
-  a = x & y;
-  b = ~x & ~y;
-  z = ~a & ~b;
-  return z;
-}
-
-static uint16_t xor16(uint16_t x, uint16_t y) {
-  uint16_t a, b, z;
-  a = x & y;
-  b = ~x & ~y;
-  z = ~a & ~b;
-  return z;
-}
-
-static void MOV(uint16_t instr) {
-  uint8_t d = instr & 077;
-  uint8_t s = (instr & 07700) >> 6;
-=======
 static void MOV(const uint16_t instr) {
   const uint8_t d = instr & 077;
   const uint8_t s = (instr & 07700) >> 6;
->>>>>>> ad320095258c3a67e75c206a7a7855a88196a912
   uint8_t l = 2 - (instr >> 15);
   const uint16_t msb = l == 2 ? 0x8000 : 0x80;
   uint16_t uval = memread(aget(s, l), l);
@@ -867,119 +845,6 @@ static void MARK(uint16_t instr) {
 static void MFPI(uint16_t instr) {
   uint8_t d = instr & 077;
   uint16_t da = aget(d, 2);
-<<<<<<< HEAD
-  uint16_t uval;
-  if (da == 0170006) {
-    // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
-    if (curuser == prevuser) {
-      uval = R[6];
-    }
-    else {
-      if (prevuser) {
-        uval = USP;
-      }
-      else {
-        uval = KSP;
-      }
-    }
-  }
-  else if (isReg(da)) {
-    Serial.println(F("invalid MFPI instruction"));
-    panic();
-  }
-  else {
-    uval = unibus::read16(mmu::decode((uint16_t)da, false, prevuser));
-  }
-  push(uval);
-  PS &= 0xFFF0;
-  PS |= FLAGC;
-  if (uval == 0) {
-    PS |= FLAGZ;
-  }
-  if (uval & 0x8000) {
-    PS |= FLAGN;
-  }
-}
-
-static void MTPI(uint16_t instr) {
-  uint8_t d = instr & 077;
-  uint16_t da = aget(d, 2);
-  uint16_t uval = pop();
-  if (da == 0170006) {
-    if (curuser == prevuser) {
-      R[6] = uval;
-    }
-    else {
-      if (prevuser) {
-        USP = uval;
-      }
-      else {
-        KSP = uval;
-      }
-    }
-  }
-  else if (isReg(da)) {
-    Serial.println(F("invalid MTPI instrution")); panic();
-  }
-  else {
-    unibus::write16(mmu::decode((uint16_t)da, true, prevuser), uval);
-  }
-  PS &= 0xFFF0;
-  PS |= FLAGC;
-  if (uval == 0) {
-    PS |= FLAGZ;
-  }
-  if (uval & 0x8000) {
-    PS |= FLAGN;
-  }
-}
-
-static void EMTX(uint16_t instr) {
-  uint16_t uval;
-  if ((instr & 0177400) == 0104000) {
-    uval = 030;
-  }
-  else if ((instr & 0177400) == 0104400) {
-    uval = 034;
-  }
-  else if (instr == 3) {
-    uval = 014;
-  }
-  else {
-    uval = 020;
-  }
-  uint16_t prev = PS;
-  switchmode(false);
-  push(prev);
-  push(R[7]);
-  R[7] = unibus::read16(uval);
-  PS = unibus::read16(uval + 2);
-  if (prevuser) {
-    PS |= (1 << 13) | (1 << 12);
-  }
-}
-
-static void RTT(uint16_t instr) {
-  R[7] = pop();
-  uint16_t uval = pop();
-  if (curuser) {
-    uval &= 047;
-    uval |= PS & 0177730;
-  }
-  unibus::write16(0777776, uval);
-}
-
-static void RESET(uint16_t instr) {
-  if (curuser) {
-    return;
-  }
-  cons::clearterminal();
-  rk11::reset();
-}
-
-void step() {
-=======
->>>>>>> ad320095258c3a67e75c206a7a7855a88196a912
   uint16_t uval;
   if (da == 0170006) {
     // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
@@ -1048,14 +913,6 @@ static void MTPI(uint16_t instr) {
 
 static void RTS(uint16_t instr) {
   uint8_t d = instr & 077;
-<<<<<<< HEAD
-  uint8_t l = 2 - (instr >> 15);
-  uint8_t o = instr & 0xFF;
-  if (l == 2) {
-    max = 0xFFFF;
-    maxp = 0x7FFF;
-    msb = 0x8000;
-=======
   R[7] = R[d & 7];
   R[d & 7] = pop();
 }
@@ -1070,7 +927,6 @@ static void EMTX(uint16_t instr) {
   }
   else if (instr == 3) {
     uval = 014;
->>>>>>> ad320095258c3a67e75c206a7a7855a88196a912
   }
   else {
     uval = 020;
@@ -1123,7 +979,7 @@ static bool C() {
 void step() {
   PC = R[7];
   uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
-  return;
+ // return;
   R[7] += 2;
 
   if (PRINTSTATE) printstate();
@@ -1351,11 +1207,6 @@ void step() {
   if (instr == 0170011) { // SETD ; not needed by UNIX, but used; therefore ignored
     return;
   }
-<<<<<<< HEAD
-
-  //fmt.Println(ia, disasm(ia))
-=======
->>>>>>> ad320095258c3a67e75c206a7a7855a88196a912
   Serial.println("invalid instruction");
   longjmp(trapbuf, INTINVAL);
 }
