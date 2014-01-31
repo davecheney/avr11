@@ -104,8 +104,7 @@ namespace xmem {
 	 */
 
 	void setMemoryBank(uint8_t bank_,bool switchHeap_) {
-
-		// check
+  		// check
 
 		if(bank_==currentBank)
 			return;
