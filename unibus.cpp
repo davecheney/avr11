@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <SpiRAM.h>
 #include <SdFat.h>
 #include "avr11.h"
 #include "cpu.h"
@@ -23,12 +22,15 @@ uint16_t read8(const uint32_t a) {
   return read16(a & ~1) & 0xFF;
 }
 
+static uint8_t bank(const uint32_t a) {
+  return a >> 15;
+  //    char * aa = (char *)&a;
+//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
+}
+
 void write8(const uint32_t a, const uint16_t v) {
   if (a < 0760000) {
-        uint8_t bank = a >> 15;
-//    char * aa = (char *)&a;
-//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
-    xmem::setMemoryBank(bank, false);
+    xmem::setMemoryBank(bank(a), false);
     charptr[(a & 0x7fff)] = v & 0xff;
     return;
   }
@@ -45,10 +47,7 @@ void write16(uint32_t a, uint16_t v) {
   longjmp(trapbuf, INTBUS);
   }
   if (a < 0760000) {
-        uint8_t bank = a >> 15;
-//    char * aa = (char *)&a;
-//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
-    xmem::setMemoryBank(bank, false);
+    xmem::setMemoryBank(bank(a), false);
     intptr[(a & 0x7fff) >> 1] = v;
     return;
   }
@@ -107,11 +106,7 @@ uint16_t read16(uint32_t a) {
     longjmp(trapbuf, INTBUS);
   }
   if (a < 0760000 ) {
-    // bank = a >> 15 costs nearly 5 usec !!
-    uint8_t bank = a >> 15;
-//    char * aa = (char *)&a;
-//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
-    xmem::setMemoryBank(bank, false);
+    xmem::setMemoryBank(bank(a), false);
     return intptr[(a & 0x7fff) >> 1];
   }
   if (a == 0777546) {
