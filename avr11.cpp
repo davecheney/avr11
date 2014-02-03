@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <Arduino.h>
 #include <SdFat.h>
 #include "avr11.h"
 #include "rk05.h"
@@ -21,6 +21,7 @@ void setup(void)
   pinMode(10, OUTPUT); digitalWrite(10, HIGH);
   pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11
   pinMode(53, OUTPUT); digitalWrite(53, HIGH);
+  pinMode(18, OUTPUT); digitalWrite(18, LOW); // timing interrupt, high while CPU is stepping
 
   // Start the UART
   Serial.begin(19200) ;
@@ -69,10 +70,11 @@ static void loop0() {
       cpu::handleinterrupt();
       return; // exit from loop to reset trapbuf
     }
+       
+    digitalWrite(18, HIGH);
     cpu::step();
-    if (INSTR_TIMING && (++instcounter == 0)) {
-      Serial.println(millis());
-    }
+    digitalWrite(18, LOW);
+    
     if (ENABLE_LKS) {
       ++clkcounter.value;
       if (clkcounter.bytes.high == 1 << 6) {

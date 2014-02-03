@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <SdFat.h>
 #include "avr11.h"
 #include "cpu.h"
@@ -23,9 +22,11 @@ uint16_t read8(const uint32_t a) {
 }
 
 static uint8_t bank(const uint32_t a) {
-  return a >> 15;
-  //    char * aa = (char *)&a;
-//    uint8_t bank = ((aa[2] & 3)<<2) | (((aa)[1] & (1<<7))>>7);
+  // This shift costs 1 Khz of simulated performance,
+  // at least 4 usec / instruction.
+  // return a >> 15;
+  char * aa = (char *)&a;
+  return ((aa[2] & 3)<<1) | (((aa)[1] & (1<<7))>>7);
 }
 
 void write8(const uint32_t a, const uint16_t v) {

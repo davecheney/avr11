@@ -189,25 +189,9 @@ void switchmode(const bool newm) {
   }
 }
 
-static bool Z() {
-  return (uint8_t)PS & FLAGZ;
-}
-
 static void setZ(bool b) {
    if (b) 
      PS |= FLAGZ;
-}
-
-static bool N() {
-  return (uint8_t)PS & FLAGN;
-}
-
-static bool V() {
-  return (uint8_t)PS & FLAGV;
-}
-
-static bool C() {
-  return (uint8_t)PS & FLAGC;
 }
 
 static void MOV(const uint16_t instr) {

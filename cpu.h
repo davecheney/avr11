@@ -42,6 +42,22 @@ void trapat(uint16_t vec);
 void interrupt(uint8_t vec, uint8_t pri);
 void handleinterrupt();
 
+static bool N() {
+  return (uint8_t)PS & FLAGN;
+}
+
+static bool Z() {
+  return (uint8_t)PS & FLAGZ;
+}
+
+static bool V() {
+  return (uint8_t)PS & FLAGV;
+}
+
+static bool C() {
+  return (uint8_t)PS & FLAGC;
+}
+
 };
 
 

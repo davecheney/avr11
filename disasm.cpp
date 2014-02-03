@@ -364,10 +364,10 @@ void printstate() {
   printf("[%s%s%s%s%s%s",
          cpu::prevuser ? "u" : "k",
          cpu::curuser ? "U" : "K",
-         cpu::PS & FLAGN ? "N" : " ",
-         cpu::PS & FLAGZ ? "Z" : " ",
-         cpu::PS & FLAGV ? "V" : " ",
-         cpu::PS & FLAGC ? "C" : " ");
+         cpu::N() ? "N" : " ",
+         cpu::Z() ? "Z" : " ",
+         cpu::V() ? "V" : " ",
+         cpu::C() ? "C" : " ");
   printf("]  instr %06o: %06o\t ", cpu::PC, unibus::read16(mmu::decode(cpu::PC, false, cpu::curuser)));
 #ifdef __AVR_ATmega2560__
   disasm(mmu::decode(cpu::PC, false, cpu::curuser));
