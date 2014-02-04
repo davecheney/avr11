@@ -17,7 +17,7 @@ void clearterminal() {
   TPB = 0;
 }
 
-void addchar(char c) {
+static void addchar(char c) {
   switch (c) {
     case 42:
       TKB = 4;

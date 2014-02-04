@@ -275,7 +275,7 @@ void disasmaddr(uint16_t m, uint32_t a) {
 
   switch (m & 070) {
     case 000:
-      printf("%s", rs[m & 7]);
+      Serial.print(rs[m & 7]);
       break;
     case 010:
       printf("(%s)", rs[m & 7]);
@@ -304,8 +304,7 @@ void disasmaddr(uint16_t m, uint32_t a) {
 }
 
 void disasm(uint32_t a) {
-  uint16_t ins;
-  ins = unibus::read16(a);
+  uint16_t ins = unibus::read16(a);
 
   D l;
   uint8_t i;
@@ -316,27 +315,29 @@ void disasm(uint32_t a) {
     }
   }
   if (l.inst == 0) {
-    printf("???");
+    Serial.print(F("???"));
     return;
   }
   printf(l.msg);
   if (l.b && (ins & 0100000)) {
-    printf("B");
+    Serial.print('B');
   }
   uint16_t s = (ins & 07700) >> 6;
   uint16_t d = ins & 077;
   uint8_t o = ins & 0377;
   switch (l.flag) {
     case S|DD:
-      printf(" ");
+      Serial.print(' ');
       disasmaddr(s, a);
-      printf(",");
+      Serial.print(',');
     case DD:
-      printf(" ");
+      Serial.print(' ');
       disasmaddr(d, a);
       break;
     case RR|O:
-      printf(" %s,", rs[(ins & 0700) >> 6]);
+      Serial.print(' ');
+      Serial.print(rs[(ins & 0700) >> 6]);
+      Serial.print(',');
       o &= 077;
     case O:
       if (o & 0x80) {
@@ -347,10 +348,13 @@ void disasm(uint32_t a) {
       };
       break;
     case RR|DD:
-      printf(" %s, ", rs[(ins & 0700) >> 6]);
+      Serial.print(' ');
+      Serial.print(rs[(ins & 0700) >> 6]);
+      Serial.print(F(", "));
       disasmaddr(d, a);
     case RR:
-      printf(" %s",  rs[ins & 7]);
+      Serial.print(' ');
+      Serial.print(rs[ins & 7]);
   }
 }
 
@@ -360,14 +364,14 @@ void printstate() {
   printf("[%s%s%s%s%s%s",
          cpu::prevuser ? "u" : "k",
          cpu::curuser ? "U" : "K",
-         cpu::PS & FLAGN ? "N" : " ",
-         cpu::PS & FLAGZ ? "Z" : " ",
-         cpu::PS & FLAGV ? "V" : " ",
-         cpu::PS & FLAGC ? "C" : " ");
+         cpu::N() ? "N" : " ",
+         cpu::Z() ? "Z" : " ",
+         cpu::V() ? "V" : " ",
+         cpu::C() ? "C" : " ");
   printf("]  instr %06o: %06o\t ", cpu::PC, unibus::read16(mmu::decode(cpu::PC, false, cpu::curuser)));
 #ifdef __AVR_ATmega2560__
   disasm(mmu::decode(cpu::PC, false, cpu::curuser));
-  Serial.println("");
 #endif
+  Serial.println("");
 }
 

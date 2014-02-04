@@ -1,5 +1,3 @@
-#include <Arduino.h>
-#include <SpiRAM.h>
 #include <SdFat.h>
 #include "avr11.h"
 #include "cpu.h"
@@ -16,16 +14,24 @@ int *intptr = reinterpret_cast<int *>(0x2200);
 // memory as bytes
 char *charptr = reinterpret_cast<char *>(0x2200);
 
-uint16_t read8(uint32_t a) {
+uint16_t read8(const uint32_t a) {
   if (a & 1) {
     return read16(a & ~1) >> 8;
   }
   return read16(a & ~1) & 0xFF;
 }
 
-void write8(uint32_t a, uint16_t v) {
+static uint8_t bank(const uint32_t a) {
+  // This shift costs 1 Khz of simulated performance,
+  // at least 4 usec / instruction.
+  // return a >> 15;
+  char * aa = (char *)&a;
+  return ((aa[2] & 3)<<1) | (((aa)[1] & (1<<7))>>7);
+}
+
+void write8(const uint32_t a, const uint16_t v) {
   if (a < 0760000) {
-    xmem::setMemoryBank((a >> 15) & 0x7, false);
+    xmem::setMemoryBank(bank(a), false);
     charptr[(a & 0x7fff)] = v & 0xff;
     return;
   }
@@ -34,7 +40,6 @@ void write8(uint32_t a, uint16_t v) {
   } else {
     write16(a&~1, (read16(a) & 0xFF00) | (v & 0xFF));
   }
-
 }
 
 void write16(uint32_t a, uint16_t v) {
@@ -43,7 +48,7 @@ void write16(uint32_t a, uint16_t v) {
   longjmp(trapbuf, INTBUS);
   }
   if (a < 0760000) {
-    xmem::setMemoryBank((a >> 15) & 0x7, false);
+    xmem::setMemoryBank(bank(a), false);
     intptr[(a & 0x7fff) >> 1] = v;
     return;
   }
@@ -101,12 +106,10 @@ uint16_t read16(uint32_t a) {
     Serial.print(F("unibus: read16 from odd address ")); Serial.println(a, OCT);
     longjmp(trapbuf, INTBUS);
   }
-
   if (a < 0760000 ) {
-    xmem::setMemoryBank((a >> 15) & 0x7, false);
+    xmem::setMemoryBank(bank(a), false);
     return intptr[(a & 0x7fff) >> 1];
   }
-
   if (a == 0777546) {
     return cpu::LKS;
   }
