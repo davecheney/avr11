@@ -13,10 +13,9 @@ SdFat sd;
 void setup(void)
 {
   // setup all the SPI pins, ensure all the devices are deselected
-//  pinMode(4, OUTPUT); digitalWrite(4, HIGH);
-  pinMode(0x8, OUTPUT); digitalWrite(10, HIGH); // 08
+  pinMode(6, OUTPUT); digitalWrite(6, HIGH);
+  pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11
-//  pinMode(53, OUTPUT); digitalWrite(53, HIGH);
   pinMode(18, OUTPUT); digitalWrite(18, LOW); // timing interrupt, high while CPU is stepping
 
   // Start the UART
