@@ -27,7 +27,7 @@ void reset(void) {
   for (i = 0; i < 29; i++) {
     unibus::write16(02000 + (i * 2), bootrom[i]);
   }
-  R[7] = 02002;
+  R[7] = 002002;
   cons::clearterminal();
   rk11::reset();
 }
@@ -506,7 +506,9 @@ static void CLR(uint16_t instr) {
   const uint8_t l = 2 - (instr >> 15);
   PS &= 0xFFF0;
   PS |= FLAGZ;
-  memwrite(aget(d, l), l, 0);
+  const uint16_t da = aget(d, l);
+  // Serial.print("CLR "); Serial.println(da, OCT);
+  memwrite(da, l, 0);
 }
 
 static void COM(uint16_t instr) {
@@ -893,7 +895,7 @@ static void EMTX(uint16_t instr) {
   }
 }
 
-static void RTT(uint16_t instr) {
+static void _RTT(uint16_t instr) {
   R[7] = pop();
   uint16_t uval = pop();
   if (curuser) {
@@ -914,7 +916,6 @@ static void RESET(uint16_t instr) {
 void step() {
   PC = R[7];
   uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
- // return;
   R[7] += 2;
 
   if (PRINTSTATE) printstate();
@@ -1133,7 +1134,7 @@ void step() {
     case 02: // RTI
 
     case 06: // RTT
-      RTT(instr);
+      _RTT(instr);
       return;
     case 05: // RESET
       RESET(instr);

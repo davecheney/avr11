@@ -1,4 +1,8 @@
 namespace unibus {
+
+  enum {
+    MEMSIZE = 0170000
+  };
   
     // operations on uint32_t types are insanely expensive
     union addr {

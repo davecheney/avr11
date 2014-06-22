@@ -54,7 +54,7 @@ uint32_t decode(const uint16_t a, const bool w, const bool user) {
         SR0 |= (1 << 5) | (1 << 6);
       }
       SR2 = cpu::PC;
-      printf("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, (pages[i].pdr.bytes.high & 0x7f));
+      p("page length exceeded, address %06o (block %03o) is beyond length %03o\r\n", a, block, (pages[i].pdr.bytes.high & 0x7f));
       longjmp(trapbuf, INTFAULT);
     }
     if (w) {

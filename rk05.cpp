@@ -130,7 +130,6 @@ static void step() {
 }
 
 void write16(uint32_t a, uint16_t v) {
-  //printf("rkwrite: %06o\n",a);
   switch (a) {
     case 0777400:
       break;

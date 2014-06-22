@@ -5,14 +5,13 @@
 #include "mmu.h"
 #include "unibus.h"
 #include "rk05.h"
-#include "xmem.h"
 
 namespace unibus {
 
 // memory as words
-int *intptr = reinterpret_cast<int *>(0x2200);
+uint16_t intptr[MEMSIZE >> 1];
 // memory as bytes
-char *charptr = reinterpret_cast<char *>(0x2200);
+char *charptr = reinterpret_cast<char *>(&intptr);
 
 uint16_t read8(const uint32_t a) {
   if (a & 1) {
@@ -21,18 +20,9 @@ uint16_t read8(const uint32_t a) {
   return read16(a & ~1) & 0xFF;
 }
 
-static uint8_t bank(const uint32_t a) {
-  // This shift costs 1 Khz of simulated performance,
-  // at least 4 usec / instruction.
-  // return a >> 15;
-  char * aa = (char *)&a;
-  return ((aa[2] & 3)<<1) | (((aa)[1] & (1<<7))>>7);
-}
-
 void write8(const uint32_t a, const uint16_t v) {
-  if (a < 0760000) {
-    xmem::setMemoryBank(bank(a), false);
-    charptr[(a & 0x7fff)] = v & 0xff;
+  if (a < MEMSIZE) {
+    charptr[a ] = v & 0xff;
     return;
   }
   if (a & 1) {
@@ -47,9 +37,8 @@ void write16(uint32_t a, uint16_t v) {
   Serial.print(F("unibus: write16 to odd address ")); Serial.println(a, OCT);
   longjmp(trapbuf, INTBUS);
   }
-  if (a < 0760000) {
-    xmem::setMemoryBank(bank(a), false);
-    intptr[(a & 0x7fff) >> 1] = v;
+  if (a < MEMSIZE) {
+    intptr[a >> 1] = v;
     return;
   }
   switch (a) {
@@ -106,9 +95,8 @@ uint16_t read16(uint32_t a) {
     Serial.print(F("unibus: read16 from odd address ")); Serial.println(a, OCT);
     longjmp(trapbuf, INTBUS);
   }
-  if (a < 0760000 ) {
-    xmem::setMemoryBank(bank(a), false);
-    return intptr[(a & 0x7fff) >> 1];
+  if (a < MEMSIZE ) {
+    return intptr[a >> 1];
   }
   if (a == 0777546) {
     return cpu::LKS;
