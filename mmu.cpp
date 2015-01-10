@@ -66,7 +66,7 @@ uint32_t decode(const uint16_t a, const bool w, const bool user) {
     aa <<= 6;
     aa += disp;
     if (DEBUG_MMU) {
-      Serial.print("decode: slow "); Serial.print(a, OCT); Serial.print(" -> "); Serial.println(aa, OCT);
+      printf("decode: slow %06o -> %06o\n", a, aa);
     }
     return aa;
   }
