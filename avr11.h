@@ -24,8 +24,6 @@ void printstate();
 void panic();
 void disasm(uint32_t ia);
 
-uint16_t trap(uint16_t num);
-
 namespace unibus {
 
 // operations on uint32_t types are insanely expensive
@@ -123,3 +121,10 @@ enum {
 enum {
   MEMSIZE = 1<<16
 };
+
+extern jmp_buf trapbuf;
+
+static uint16_t trap(uint16_t vec) {
+  longjmp(trapbuf, INTBUS);
+  return vec; // not reached
+}

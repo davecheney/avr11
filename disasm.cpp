@@ -1,9 +1,7 @@
-#include <Arduino.h>
 #include <stdio.h>
 #include <SdFat.h>
+#include <setjmp.h>
 #include "avr11.h"
-
- int printf(const char *format, ...);
 
 const char *rs[] = { "R0", "R1", "R2", "R3", "R4", "R5", "SP", "PC" };
 

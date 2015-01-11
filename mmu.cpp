@@ -1,10 +1,7 @@
-#include <Arduino.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <SdFat.h>
+#include <setjmp.h>
 #include "avr11.h"
-
-int printf(const char *format, ...);
 
 namespace mmu {
 

@@ -1,5 +1,5 @@
-#include <Arduino.h>
 #include <SdFat.h>
+#include <setjmp.h>
 #include "avr11.h"
 
 namespace rk11 {

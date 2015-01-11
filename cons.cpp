@@ -1,9 +1,6 @@
-#include <Arduino.h>
 #include <SdFat.h>
 #include <stdio.h>
-
-int printf(const char *format, ...);
-
+#include <setjmp.h>
 #include "avr11.h"
 
 namespace cons {

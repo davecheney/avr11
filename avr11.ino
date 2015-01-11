@@ -112,11 +112,6 @@ static void loop0() {
 
 jmp_buf trapbuf;
 
-uint16_t trap(uint16_t vec) {
-  longjmp(trapbuf, INTBUS);
-  return vec; // not reached
-}
-
 void loop() {
   uint16_t vec = setjmp(trapbuf);
   if (vec) {

@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <SdFat.h>
+#include <setjmp.h>
 #include "avr11.h"
 namespace unibus {
 
 #ifdef __ATMEGA2560__
 #include "xmem.h"
-
 
 // memory as words
 int *intptr = reinterpret_cast<int *>(0x2200);
@@ -13,7 +13,7 @@ int *intptr = reinterpret_cast<int *>(0x2200);
 char *charptr = reinterpret_cast<char *>(0x2200);
 #endif
 
-// memory as words 
+// memory as words
 uint16_t intptr[MEMSIZE >> 1];
 
 char *charptr = reinterpret_cast<char *>(&intptr);
