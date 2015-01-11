@@ -30,4 +30,4 @@ uint16_t consecho[] = {
   0100376,          // bpl wait        ; no, loop
   0016060, 0000002, 0000006, //           mov 2(r0),6(r0) ; transmit data
   0000772,          // br wait         ; get next character
-};  
+};

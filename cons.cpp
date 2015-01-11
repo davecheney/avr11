@@ -1,7 +1,10 @@
 #include <Arduino.h>
+#include <SdFat.h>
+#include <stdio.h>
+
+int printf(const char *format, ...);
+
 #include "avr11.h"
-#include "cons.h"
-#include "cpu.h"
 
 namespace cons {
 
@@ -40,11 +43,10 @@ static void addchar(char c) {
 uint8_t count;
 
 void poll() {
-  if (Serial.available()) {
-    addchar(Serial.read());
-  }
-
-  if ((TPS & 0x80) == 0) {
+  if(Serial.available())
+      addchar(Serial.read()); 
+     
+    if ((TPS & 0x80) == 0) {
     if (++count > 32) {
       Serial.write(TPB & 0x7f);
       TPS |= 0x80;
@@ -52,7 +54,24 @@ void poll() {
         cpu::interrupt(INTTTYOUT, 4);
       }
     }
+  }  
+    
+  #ifdef __ATMEGA2560__
+  if (UCSR0A & _BV(RXC0)) {
+    addchar(UDR0);
   }
+
+
+  if ((TPS & 0x80) == 0) {
+    if (++count > 32) {
+      UDR0 = TPB & 0x7f;
+      TPS |= 0x80;
+      if (TPS & (1 << 6)) {
+        cpu::interrupt(INTTTYOUT, 4);
+      }
+    }
+  }  
+  #endif
 }
 
 // TODO(dfc) this could be rewritten to translate to the native AVR UART registers
@@ -73,7 +92,7 @@ uint16_t read16(uint32_t a) {
     case 0777566:
       return 0;
     default:
-      Serial.println(F("consread16: read from invalid address")); // " + ostr(a, 6))
+      printf("consread16: read from invalid address: %06o\n", a);
       panic();
   }
 }
@@ -102,7 +121,7 @@ void write16(uint32_t a, uint16_t v) {
       count = 0;
       break;
     default:
-      Serial.println(F("conswrite16: write to invalid address")); // " + ostr(a, 6))
+      printf("conswrite16: write to invalid address: %06o\n", a); 
       panic();
   }
 }

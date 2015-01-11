@@ -1,10 +1,6 @@
-#include <stdint.h>
 #include <Arduino.h>
 #include <SdFat.h>
 #include "avr11.h"
-#include "unibus.h"
-#include "rk05.h"
-#include "cpu.h"
 
 namespace rk11 {
 
@@ -49,7 +45,7 @@ void rkerror(uint16_t e) {
 }
 
 static void step() {
-  again:
+again:
   bool w;
   switch ((RKCS & 017) >> 1) {
     case 0:
