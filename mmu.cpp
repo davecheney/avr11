@@ -5,43 +5,23 @@
 
 namespace mmu {
 
-class page {
-  public:
-    uint16_t par, pdr;
-
-    uint16_t addr() {
-      return par & 07777;
-    }
-    uint8_t len() {
-      return (pdr >> 8) & 0x7f;
-    }
-    bool read() {
-      return pdr & 2;
-    }
-    bool write() {
-      return pdr & 6;
-    };
-    bool ed() {
-      return pdr & 8;
-    }
-};
-
-page pages[16];
+struct {
+  uint16_t par, pdr;
+} pages[16];
 uint16_t SR0, SR2;
 
-void dumppages() {
-  uint8_t i;
-  for (i = 0; i < 16; i++) {
-    printf("%0x: %06o %06o\r\n", i, pages[i].par, pages[i].pdr);
-  }
-}
+#define READ(x) (x.pdr & 2)
+#define WRITE(x) (x.pdr & 6)
+#define ED(x) (x.pdr & 8)
+#define LEN(x) ((x.pdr >> 8) & 0x7f)
+#define ADDR(x) (uint32_t)(x.par & 07777)
 
-uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
+uint32_t decode(const uint16_t a, const uint8_t w, const uint8_t user) {
   if ((SR0 & 1) == 0) {
     return a > 0167777 ? ((uint32_t)a) + 0600000 : a;
   }
-  uint8_t i = user ? ((a >> 13) + 8) : (a >> 13);
-  if (w && !pages[i].write()) {
+  const uint8_t i = user ? ((a >> 13) + 8) : (a >> 13);
+  if (w && !WRITE(pages[i])) {
     SR0 = (1 << 13) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -52,7 +32,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("mmu::decode write to read-only page %06o\n", a);
     trap(INTFAULT);
   }
-  if (!pages[i].read()) {
+  if (!READ(pages[i])) {
     SR0 = (1 << 15) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -62,10 +42,10 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     printf("mmu::decode read from no-access page %06o\n", a);
     trap(INTFAULT);
   }
-  uint8_t block = (a >> 6) & 0177;
-  uint8_t disp = a & 077;
+  const uint8_t block = (a >> 6) & 0177;
+  const uint8_t disp = a & 077;
   // if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
-  if (pages[i].ed() ? (block < pages[i].len()) : (block > pages[i].len())) {
+  if (ED(pages[i]) ? (block < LEN(pages[i])) : (block > LEN(pages[i]))) {
     SR0 = (1 << 14) | 1;
     SR0 |= (a >> 12) & ~1;
     if (user) {
@@ -74,14 +54,14 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
     SR2 = cpu::PC;
     printf("page length exceeded, address %06o (block %03o) is beyond length "
            "%03o\r\n",
-           a, block, pages[i].len());
+           a, block, LEN(pages[i]));
     trap(INTFAULT);
   }
   if (w) {
     pages[i].pdr |= 1 << 6;
   }
   // danger, this can be cast to a uint16_t if you aren't careful
-  uint32_t aa = pages[i].par & 07777;
+  uint32_t aa = ADDR(pages[i]);
   aa += block;
   aa <<= 6;
   aa += disp;
@@ -92,7 +72,7 @@ uint32_t decode(uint16_t a, uint8_t w, uint8_t user) {
   return aa;
 }
 
-uint16_t read16(uint32_t a) {
+uint16_t read16(const uint32_t a) {
   if ((a >= 0772300) && (a < 0772320)) {
     return pages[((a & 017) >> 1)].pdr;
   }
@@ -109,8 +89,8 @@ uint16_t read16(uint32_t a) {
   return trap(INTBUS);
 }
 
-void write16(uint32_t a, uint16_t v) {
-  uint8_t i = ((a & 017) >> 1);
+void write16(const uint32_t a, const uint16_t v) {
+  const uint8_t i = ((a & 017) >> 1);
   if ((a >= 0772300) && (a < 0772320)) {
     pages[i].pdr = v;
     return;

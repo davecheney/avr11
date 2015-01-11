@@ -71,13 +71,7 @@ void setup() {
   printf("Ready\n");
 }
 
-union {
-  struct {
-    uint8_t low;
-    uint8_t high;
-  } bytes;
-  uint16_t value;
-} clkcounter;
+uint16_t clkcounter;
 uint16_t instcounter;
 
 // On a 16Mhz atmega 2560 this loop costs 21usec per emulated instruction
@@ -96,9 +90,9 @@ static void loop0() {
     digitalWrite(18, LOW);//cbi(PORTD, 3);
     
     if (ENABLE_LKS) {
-      ++clkcounter.value;
-      if (clkcounter.bytes.high == 1 << 6) {
-        clkcounter.value = 0;
+      ++clkcounter;
+      if (clkcounter > ( 1 << 14)) {
+        clkcounter = 0;
         cpu::LKS |= (1 << 7);
         if (cpu::LKS & (1 << 6)) {
           cpu::interrupt(INTCLOCK, 6);

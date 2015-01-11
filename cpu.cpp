@@ -5,8 +5,6 @@
 #include "avr11.h"
 #include "bootrom.h"
 
-extern jmp_buf trapbuf;
-
 pdp11::intr itab[ITABN];
 
 namespace cpu {
@@ -62,7 +60,7 @@ static uint16_t memread16(const uint16_t a) {
   return read16(a);
 }
 
-static uint16_t memread(uint16_t a, uint8_t l) {
+static uint16_t memread(const uint16_t a, const uint8_t l) {
   if (isReg(a)) {
     const uint8_t r = a & 7;
     if (l == 2) {
@@ -187,10 +185,7 @@ void switchmode(const bool newm) {
   }
 }
 
-static void setZ(const bool b) {
-  if (b)
-    PS |= FLAGZ;
-}
+#define setZ(x) if (x) { PS |= FLAGZ; }
 
 #define D(x) (x & 077)
 #define S(x) ((x & 07700) >> 6)
@@ -728,8 +723,8 @@ static void JMP(const uint16_t instr) {
 }
 
 static void SWAB(const uint16_t instr) {
-  uint8_t l = 2 - (instr >> 15);
-  uint16_t da = DA(instr);
+  const uint8_t l = 2 - (instr >> 15);
+  const uint16_t da = DA(instr);
   uint16_t uval = memread(da, l);
   uval = ((uval >> 8) | (uval << 8)) & 0xFFFF;
   PS &= 0xFFF0;
@@ -747,7 +742,7 @@ static void MARK(const uint16_t instr) {
 }
 
 static void MFPI(const uint16_t instr) {
-  uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), 2);
   uint16_t uval;
   if (da == 0170006) {
     // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
