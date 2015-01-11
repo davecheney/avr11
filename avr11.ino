@@ -41,10 +41,12 @@ void uart_init(void) {
 
 void setup() {
   Serial.begin(9600);
+    #ifdef __ATMEGA2560__
   // setup all the SPI pins, ensure all the devices are deselected
   pinMode(6, OUTPUT); digitalWrite(6, HIGH);
   pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11
+    #endif
   pinMode(18, OUTPUT); digitalWrite(18, LOW); // timing interrupt, high while CPU is stepping
 
   printf("Reset\n");

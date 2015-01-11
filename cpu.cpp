@@ -138,10 +138,10 @@ static uint16_t aget(uint8_t v, uint8_t l) {
       break;
     case 020:
       addr = R[v & 7];
-      R[v & 7] += l;
+      R[v & 7] += ((l == WORD) ? 2 : 1);
       break;
     case 040:
-      R[v & 7] -= l;
+      R[v & 7] -= ((l == WORD) ? 2 : 1);
       addr = R[v & 7];
       break;
     case 060:
@@ -188,7 +188,7 @@ void switchmode(const bool newm) {
 #define setZ(x) if (x == 0) { PS |= FLAGZ; }
 #define D(x) (x & 077)
 #define S(x) ((x & 07700) >> 6)
-#define L(x) (2 - (x >> 15))
+#define L(x) (WORD - (x >> 15))
 #define SA(x) (aget(S(x), L(x)))
 #define DA(x) (aget(D(x), L(x)))
 #define MSB(x) ((instr >> 15) ? 0x80 : 0x8000)
@@ -276,8 +276,8 @@ static void BIS(const uint16_t instr) {
 }
 
 static void ADD(const uint16_t instr) {
-  const uint16_t val1 = memread16(aget(S(instr), 2));
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t val1 = memread16(aget(S(instr), WORD));
+  const uint16_t da = aget(D(instr), WORD);
   const uint16_t val2 = memread16(da);
   const uint16_t uval = (val1 + val2) & 0xFFFF;
   PS &= 0xFFF0;
@@ -295,7 +295,7 @@ static void ADD(const uint16_t instr) {
 }
 
 static void SUB(const uint16_t instr) {
-  const uint16_t val1 = memread16(aget(S(instr), 2));
+  const uint16_t val1 = memread16(aget(S(instr), WORD));
   const uint16_t da = aget(D(instr), 2);
   const uint16_t val2 = memread16(da);
   const uint16_t uval = (val2 - val1) & 0xFFFF;
@@ -373,7 +373,7 @@ static void DIV(const uint16_t instr) {
 
 static void ASH(const uint16_t instr) {
   const uint16_t val1 = R[S(instr) & 7];
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), WORD);
   uint16_t val2 = memread16(da) & 077;
   PS &= 0xFFF0;
   int32_t sval;
@@ -406,7 +406,7 @@ static void ASH(const uint16_t instr) {
 
 static void ASHC(const uint16_t instr) {
   const uint32_t val1 = R[S(instr) & 7] << 16 | R[(S(instr) & 7) | 1];
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), WORD);
   uint16_t val2 = memread16(da) & 077;
   PS &= 0xFFF0;
   int32_t sval;
@@ -440,7 +440,7 @@ static void ASHC(const uint16_t instr) {
 
 static void XOR(const uint16_t instr) {
   const uint16_t val1 = R[S(instr) & 7];
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), WORD);
   const uint16_t val2 = memread16(da);
   const uint16_t uval = val1 ^ val2;
   PS &= 0xFFF1;
@@ -462,7 +462,6 @@ static void SOB(const uint16_t instr) {
 }
 
 static void CLR(const uint16_t instr) {
-  ;
   PS &= 0xFFF0;
   PS |= FLAGZ;
   const uint16_t da = DA(instr);
@@ -703,7 +702,7 @@ static void SXT(const uint16_t instr) {
 }
 
 static void JMP(const uint16_t instr) {
-  const uint16_t uval = aget(D(instr), 2);
+  const uint16_t uval = aget(D(instr), WORD);
   if (isReg(uval)) {
     printf("JMP called with register dest\n");
     panic();
@@ -730,7 +729,7 @@ static void MARK(const uint16_t instr) {
 }
 
 static void MFPI(const uint16_t instr) {
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), WORD);
   uint16_t uval;
   if (da == 0170006) {
     // val = (curuser == prevuser) ? R[6] : (prevuser ? k.USP : KSP);
@@ -760,8 +759,8 @@ static void MFPI(const uint16_t instr) {
 }
 
 static void MTPI(const uint16_t instr) {
-  uint16_t da = aget(D(instr), 2);
-  uint16_t uval = pop();
+  const uint16_t da = aget(D(instr), WORD);
+  const uint16_t uval = pop();
   if (da == 0170006) {
     if (curuser == prevuser) {
       R[6] = uval;
@@ -776,7 +775,7 @@ static void MTPI(const uint16_t instr) {
     printf("invalid MTPI instrution\n");
     panic();
   } else {
-    unibus::write16(mmu::decode((uint16_t)da, true, prevuser), uval);
+    unibus::write16(mmu::decode(da, true, prevuser), uval);
   }
   PS &= 0xFFF0;
   PS |= FLAGC;
