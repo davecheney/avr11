@@ -195,37 +195,33 @@ void switchmode(const bool newm) {
 #define MAX(x) ((instr >> 15) ? 0xff : 0xffff)
 
 static void MOV(const uint16_t instr) {
-  uint8_t l = L(instr);
-  const uint16_t msb  MSB(instr);
-  uint16_t uval = memread(aget(S(instr), l), l);
+  uint16_t uval = memread(SA(instr), L(instr));
   const uint16_t da = DA(instr);
   PS &= 0xFFF1;
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   setZ(uval);
-  if ((isReg(da)) && !isWord(l)) {
-    l = WORD;
-    if (uval & msb) {
+  if ((isReg(da)) && !isWord(L(instr))) {
+    if (uval & MSB(instr)) {
       uval |= 0xFF00;
     }
+    memwrite(da, WORD, uval);
+  } else {
+    memwrite(da, L(instr), uval);
   }
-  memwrite(da, l, uval);
 }
 
 static void CMP(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
-  const uint16_t val1 = memread(aget(S(instr), L(instr)), L(instr));
-  const uint16_t da = DA(instr);
-  const uint16_t val2 = memread(da, L(instr));
-  const int32_t sval = (val1 - val2) & max;
+  const uint16_t val1 = memread(SA(instr), L(instr));
+  const uint16_t val2 = memread(DA(instr), L(instr));
+  const int32_t sval = (val1 - val2) & MAX(instr);
   PS &= 0xFFF0;
   setZ(sval);
-  if (sval & msb) {
+  if (sval & MSB(instr)) {
     PS |= FLAGN;
   }
-  if (((val1 ^ val2) & msb) && (!((val2 ^ sval) & msb))) {
+  if (((val1 ^ val2) & MSB(instr)) && (!((val2 ^ sval) & MSB(instr)))) {
     PS |= FLAGV;
   }
   if (val1 < val2) {
@@ -234,42 +230,37 @@ static void CMP(const uint16_t instr) {
 }
 
 static void BIT(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
   const uint16_t val1 = memread(SA(instr), L(instr));
-  const uint16_t da = DA(instr);
-  const uint16_t val2 = memread(da, L(instr));
+  const uint16_t val2 = memread(DA(instr), L(instr));
   const uint16_t uval = val1 & val2;
   PS &= 0xFFF1;
   setZ(uval);
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
 }
 
 static void BIC(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t val1 = memread(SA(instr), L(instr));
   const uint16_t da = DA(instr);
   const uint16_t val2 = memread(da, L(instr));
-  const uint16_t uval = (max ^ val1) & val2;
+  const uint16_t uval = (MAX(instr) ^ val1) & val2;
   PS &= 0xFFF1;
   setZ(uval);
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   memwrite(da, L(instr), uval);
 }
 
 static void BIS(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
   const uint16_t val1 = memread(SA(instr), L(instr));
   const uint16_t da = DA(instr);
   const uint16_t val2 = memread(da, L(instr));
   const uint16_t uval = val1 | val2;
   PS &= 0xFFF1;
   setZ(uval);
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   memwrite(da, L(instr), uval);
@@ -296,7 +287,7 @@ static void ADD(const uint16_t instr) {
 
 static void SUB(const uint16_t instr) {
   const uint16_t val1 = memread16(aget(S(instr), WORD));
-  const uint16_t da = aget(D(instr), 2);
+  const uint16_t da = aget(D(instr), WORD);
   const uint16_t val2 = memread16(da);
   const uint16_t uval = (val2 - val1) & 0xFFFF;
   PS &= 0xFFF0;
@@ -349,8 +340,7 @@ static void MUL(const uint16_t instr) {
 
 static void DIV(const uint16_t instr) {
   const int32_t val1 = (R[S(instr) & 7] << 16) | (R[(S(instr) & 7) | 1]);
-  const uint16_t da = DA(instr);
-  const int32_t val2 = memread16(da);
+  const int32_t val2 = memread16(DA(instr));
   PS &= 0xFFF0;
   if (val2 == 0) {
     PS |= FLAGC;
@@ -461,21 +451,12 @@ static void SOB(const uint16_t instr) {
   }
 }
 
-static void CLR(const uint16_t instr) {
-  PS &= 0xFFF0;
-  PS |= FLAGZ;
-  const uint16_t da = DA(instr);
-  memwrite(da, L(instr), 0);
-}
-
 static void COM(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
-  const uint16_t uval = memread(da, L(instr)) ^ max;
+  const uint16_t uval = memread(da, L(instr)) ^ MAX(instr);
   PS &= 0xFFF0;
   PS |= FLAGC;
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   setZ(uval);
@@ -483,12 +464,10 @@ static void COM(const uint16_t instr) {
 }
 
 static void INC(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
-  const uint16_t uval = (memread(da, L(instr)) + 1) & max;
+  const uint16_t uval = (memread(da, L(instr)) + 1) & MAX(instr);
   PS &= 0xFFF1;
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN | FLAGV;
   }
   setZ(uval);
@@ -496,13 +475,11 @@ static void INC(const uint16_t instr) {
 }
 
 static void _DEC(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
-  const uint16_t maxp = L(instr) == 2 ? 0x7FFF : 0x7f;
+  const uint16_t maxp = L(instr) == WORD ? 0x7FFF : 0x7f;
   const uint16_t da = DA(instr);
-  const uint16_t uval = (memread(da, L(instr)) - 1) & max;
+  const uint16_t uval = (memread(da, L(instr)) - 1) & MAX(instr);
   PS &= 0xFFF1;
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   if (uval == maxp) {
@@ -513,12 +490,10 @@ static void _DEC(const uint16_t instr) {
 }
 
 static void NEG(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
-  const int32_t sval = (-memread(da, L(instr))) & max;
+  const int32_t sval = (-memread(da, L(instr))) & MAX(instr);
   PS &= 0xFFF0;
-  if (sval & msb) {
+  if (sval & MSB(instr)) {
     PS |= FLAGN;
   }
   if (sval == 0) {
@@ -533,16 +508,14 @@ static void NEG(const uint16_t instr) {
 }
 
 static void _ADC(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
   const uint16_t uval = memread(da, L(instr));
   if (PS & FLAGC) {
     PS &= 0xFFF0;
-    if ((uval + 1) & msb) {
+    if ((uval + 1) & MSB(instr)) {
       PS |= FLAGN;
     }
-    if (uval == max)
+    if (uval == MAX(instr))
       PS != FLAGZ;
     if (uval == 0077777) {
       PS |= FLAGV;
@@ -550,10 +523,10 @@ static void _ADC(const uint16_t instr) {
     if (uval == 0177777) {
       PS |= FLAGC;
     }
-    memwrite(da, L(instr), (uval + 1) & max);
+    memwrite(da, L(instr), (uval + 1) & MAX(instr));
   } else {
     PS &= 0xFFF0;
-    if (uval & msb) {
+    if (uval & MSB(instr)) {
       PS |= FLAGN;
     }
     setZ(uval);
@@ -561,13 +534,11 @@ static void _ADC(const uint16_t instr) {
 }
 
 static void SBC(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
   int32_t sval = memread(da, L(instr));
   if (PS & FLAGC) {
     PS &= 0xFFF0;
-    if ((sval - 1) & msb) {
+    if ((sval - 1) & MSB(instr)) {
       PS |= FLAGN;
     }
     if (sval == 1)
@@ -578,10 +549,10 @@ static void SBC(const uint16_t instr) {
     if (sval == 0100000) {
       PS |= FLAGV;
     }
-    memwrite(da, L(instr), (sval - 1) & max);
+    memwrite(da, L(instr), (sval - 1) & MAX(instr));
   } else {
     PS &= 0xFFF0;
-    if (sval & msb) {
+    if (sval & MSB(instr)) {
       PS |= FLAGN;
     }
     setZ(sval);
@@ -593,33 +564,31 @@ static void SBC(const uint16_t instr) {
 }
 
 static void TST(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t uval = memread(aget(D(instr), L(instr)), L(instr));
+  const uint16_t uval = memread(DA(instr), L(instr));
   PS &= 0xFFF0;
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
   setZ(uval);
 }
 
 static void ROR(const uint16_t instr) {
-  const int32_t max = MAX(instr);
   const uint16_t da = DA(instr);
   int32_t sval = memread(da, L(instr));
   if (PS & FLAGC) {
-    sval |= max + 1;
+    sval |= MAX(instr) + 1;
   }
   PS &= 0xFFF0;
   if (sval & 1) {
     PS |= FLAGC;
   }
   // watch out for integer wrap around
-  if (sval & (max + 1)) {
+  if (sval & (MAX(instr) + 1)) {
     PS |= FLAGN;
   }
-  if (!(sval & max))
+  if (!(sval & MAX(instr)))
     PS |= FLAGZ;
-  if ((sval & 1)xor(sval & (max + 1))) {
+  if ((sval & 1)xor(sval & (MAX(instr) + 1))) {
     PS |= FLAGV;
   }
   sval >>= 1;
@@ -627,74 +596,68 @@ static void ROR(const uint16_t instr) {
 }
 
 static void ROL(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const int32_t max = MAX(instr);
   const uint16_t da = DA(instr);
   int32_t sval = memread(da, L(instr)) << 1;
   if (PS & FLAGC) {
     sval |= 1;
   }
   PS &= 0xFFF0;
-  if (sval & (max + 1)) {
+  if (sval & (MAX(instr) + 1)) {
     PS |= FLAGC;
   }
-  if (sval & msb) {
+  if (sval & MSB(instr)) {
     PS |= FLAGN;
   }
-  if (!(sval & max))
+  if (!(sval & MAX(instr)))
     PS |= FLAGZ;
-  if ((sval ^ (sval >> 1)) & msb) {
+  if ((sval ^ (sval >> 1)) & MSB(instr)) {
     PS |= FLAGV;
   }
-  sval &= max;
+  sval &= MAX(instr);
   memwrite(da, L(instr), sval);
 }
 
 static void ASR(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
   const uint16_t da = DA(instr);
   uint16_t uval = memread(da, L(instr));
   PS &= 0xFFF0;
   if (uval & 1) {
     PS |= FLAGC;
   }
-  if (uval & msb) {
+  if (uval & MSB(instr)) {
     PS |= FLAGN;
   }
-  if ((uval & msb)xor(uval & 1)) {
+  if ((uval & MSB(instr))xor(uval & 1)) {
     PS |= FLAGV;
   }
-  uval = (uval & msb) | (uval >> 1);
+  uval = (uval & MSB(instr)) | (uval >> 1);
   setZ(uval);
   memwrite(da, L(instr), uval);
 }
 
 static void ASL(const uint16_t instr) {
-  const uint16_t msb = MSB(instr);
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
   // TODO(dfc) doesn't need to be an sval
   int32_t sval = memread(da, L(instr));
   PS &= 0xFFF0;
-  if (sval & msb) {
+  if (sval & MSB(instr)) {
     PS |= FLAGC;
   }
-  if (sval & (msb >> 1)) {
+  if (sval & (MSB(instr) >> 1)) {
     PS |= FLAGN;
   }
-  if ((sval ^ (sval << 1)) & msb) {
+  if ((sval ^ (sval << 1)) & MSB(instr)) {
     PS |= FLAGV;
   }
-  sval = (sval << 1) & max;
+  sval = (sval << 1) & MAX(instr);
   setZ(sval);
   memwrite(da, L(instr), sval);
 }
 
 static void SXT(const uint16_t instr) {
-  const uint16_t max = MAX(instr);
   const uint16_t da = DA(instr);
   if (PS & FLAGN) {
-    memwrite(da, L(instr), max);
+    memwrite(da, L(instr), MAX(instr));
   } else {
     PS |= FLAGZ;
     memwrite(da, L(instr), 0);
@@ -711,15 +674,14 @@ static void JMP(const uint16_t instr) {
 }
 
 static void SWAB(const uint16_t instr) {
-  const uint16_t da = DA(instr);
-  uint16_t uval = memread(da, L(instr));
+  uint16_t uval = memread(DA(instr), L(instr));
   uval = ((uval >> 8) | (uval << 8)) & 0xFFFF;
   PS &= 0xFFF0;
   setZ(uval & 0xFF);
   if (uval & 0x80) {
     PS |= FLAGN;
   }
-  memwrite(da, L(instr), uval);
+  memwrite(DA(instr), L(instr), uval);
 }
 
 static void MARK(const uint16_t instr) {
@@ -783,11 +745,6 @@ static void MTPI(const uint16_t instr) {
   if (uval & 0x8000) {
     PS |= FLAGN;
   }
-}
-
-static void RTS(const uint16_t instr) {
-  R[7] = R[D(instr) & 7];
-  R[D(instr) & 7] = pop();
 }
 
 static void EMTX(const uint16_t instr) {
@@ -888,7 +845,9 @@ void step() {
   }
   switch ((instr >> 6) & 00777) {
     case 00050: // CLR
-      CLR(instr);
+      PS &= 0xFFF0;
+      PS |= FLAGZ;
+      memwrite(DA(instr), L(instr), 0);
       return;
     case 00051: // COM
       COM(instr);
@@ -945,7 +904,8 @@ void step() {
       return;
   }
   if ((instr & 0177770) == 0000200) { // RTS
-    RTS(instr);
+    R[7] = R[D(instr) & 7];
+    R[D(instr) & 7] = pop();
     return;
   }
 
