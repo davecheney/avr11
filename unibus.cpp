@@ -29,7 +29,7 @@ void write8(const uint32_t a, const uint16_t v) {
   if (a < MEMSIZE) {
     //xmem::setMemoryBank((a >> 15) & 0xf, false);
     //charptr[(a & 0x7fff)] = v & 0xff;
-    charptr[a] = v & 0xff;
+    charptr[a] = v;
     return;
   }
   if (a & 1) {
@@ -39,8 +39,8 @@ void write8(const uint32_t a, const uint16_t v) {
   }
 }
 
-void write16(uint32_t a, uint16_t v) {
-  if (a % 1) {
+void write16(const uint32_t a, const uint16_t v) {
+  if (a & 1) {
     printf("unibus: write16 to odd address %06o\n", a);
     trap(INTBUS);
   }
@@ -99,7 +99,7 @@ void write16(uint32_t a, uint16_t v) {
   trap(INTBUS);
 }
 
-uint16_t read16(uint32_t a) {
+uint16_t read16(const uint32_t a) {
   if (a & 1) {
     printf("unibus: read16 from odd address %06o\n", a);
     trap(INTBUS);

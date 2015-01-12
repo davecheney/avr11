@@ -5,7 +5,121 @@
 #include "avr11.h"
 #include "bootrom.h"
 
-pdp11::intr itab[ITABN];
+
+extern struct intr {
+  uint8_t vec;
+  uint8_t pri;
+} itab[ITABN];
+
+namespace mmu {
+
+struct {
+  uint32_t par, pdr;
+} pages[16];
+
+uint32_t SR0;
+uint16_t SR2;
+
+#define READ(x) (x.pdr & 2)
+#define WRITE(x) (x.pdr & 6)
+#define ED(x) (x.pdr & 8)
+#define LEN(x) ((x.pdr >> 8) & 0x7f)
+#define ADDR(x) (x.par & 07777)
+#define BLOCK(x) ((x >> 6) & 0177)
+#define DISP(x) (x & 077)
+
+uint32_t decode(const uint32_t a, const bool w, const bool user) {
+  if (!(SR0 & 1)) {
+    if (a > 0167777)
+      return a + 0600000;
+    return a;
+  }
+  const uint8_t i = user ? ((a >> 13) + 8) : (a >> 13);
+  if (w && !WRITE(pages[i])) {
+    SR0 = (1 << 13) | 1;
+    SR0 |= (a >> 12) & ~1;
+    if (user) {
+      SR0 |= (1 << 5) | (1 << 6);
+    }
+    SR2 = cpu::PC;
+
+    printf("mmu::decode write to read-only page %06o\n", a);
+    trap(INTFAULT);
+  }
+  if (!READ(pages[i])) {
+    SR0 = (1 << 15) | 1;
+    SR0 |= (a >> 12) & ~1;
+    if (user) {
+      SR0 |= (1 << 5) | (1 << 6);
+    }
+    SR2 = cpu::PC;
+    printf("mmu::decode read from no-access page %06o\n", a);
+    trap(INTFAULT);
+  }
+  // if ((p.ed() && (block < p.len())) || (!p.ed() && (block > p.len()))) {
+  if (ED(pages[i]) ? (BLOCK(a) < LEN(pages[i])) : (BLOCK(a) > LEN(pages[i]))) {
+    SR0 = (1 << 14) | 1;
+    SR0 |= (a >> 12) & ~1;
+    if (user) {
+      SR0 |= (1 << 5) | (1 << 6);
+    }
+    SR2 = cpu::PC;
+    printf("page length exceeded, address %06o (block %03o) is beyond length "
+           "%03o\r\n",
+           a, BLOCK(a), LEN(pages[i]));
+    trap(INTFAULT);
+  }
+  if (w) {
+    pages[i].pdr |= 1 << 6;
+  }
+  const uint32_t aa = ((ADDR(pages[i]) + BLOCK(a)) << 6 ) + DISP(a);
+  if (DEBUG_MMU) {
+    printf("decode: slow %06o -> %06o\n", a, aa);
+  }
+
+  return aa;
+}
+
+#define PAGE(x) ((x & 017) >> 1)
+
+uint16_t read16(const uint32_t a) {
+  if ((a >= 0772300) && (a < 0772320)) {
+    return pages[PAGE(a)].pdr;
+  }
+  if ((a >= 0772340) && (a < 0772360)) {
+    return pages[PAGE(a)].par;
+  }
+  if ((a >= 0777600) && (a < 0777620)) {
+    return pages[PAGE(a) + 8].pdr;
+  }
+  if ((a >= 0777640) && (a < 0777660)) {
+    return pages[PAGE(a) + 8].par;
+  }
+  printf("mmu::read16 invalid read from %06o\n", a);
+  return trap(INTBUS);
+}
+
+void write16(const uint32_t a, const uint16_t v) {
+  if ((a >= 0772300) && (a < 0772320)) {
+    pages[PAGE(a)].pdr = v;
+    return;
+  }
+  if ((a >= 0772340) && (a < 0772360)) {
+    pages[PAGE(a)].par = v;
+    return;
+  }
+  if ((a >= 0777600) && (a < 0777620)) {
+    pages[PAGE(a) + 8].pdr = v;
+    return;
+  }
+  if ((a >= 0777640) && (a < 0777660)) {
+    pages[PAGE(a) + 8].par = v;
+    return;
+  }
+  printf("mmu::write16 write to invalid address %06o\n", a);
+  trap(INTBUS);
+}
+};
 
 namespace cpu {
 
@@ -24,6 +138,10 @@ void reset(void) {
     unibus::write16(02000 + (i * 2), bootrom[i]);
   }
   R[7] = 002002;
+  /*for (i = 0; i < 8; i++) {
+    unibus::write16(01000 + (i * 2), consecho[i]);
+  }
+  R[7] = 001000;*/
   cons::clearterminal();
   rk11::reset();
 }
@@ -64,7 +182,7 @@ static uint16_t memread(const uint32_t a, const uint32_t l) {
     } else {
       return R[a & 7] & 0xFF;
     }
-  } 
+  }
   if (isWord(l)) {
     return READ16(a);
   }
@@ -119,9 +237,9 @@ static uint16_t pop() {
 // technically a valid IO page, but unibus doesn't map
 // any addresses here, so we can safely do this.
 static uint16_t aget(uint8_t v, uint8_t l) {
-  if ((v & 070) == 000) {
+  if (!(v & 070))
     return 0170000 | (v & 7);
-  }
+    
   if (((v & 7) >= 6) || (v & 010)) {
     l = WORD;
   }
@@ -133,10 +251,10 @@ static uint16_t aget(uint8_t v, uint8_t l) {
       break;
     case 020:
       addr = R[v & 7];
-      R[v & 7] += ((l == WORD) ? 2 : 1);
+      R[v & 7] += l;
       break;
     case 040:
-      R[v & 7] -= ((l == WORD) ? 2 : 1);
+      R[v & 7] -= l;
       addr = R[v & 7];
       break;
     case 060:
@@ -253,10 +371,10 @@ static void BIS(const uint16_t instr) {
 }
 
 static void ADD(const uint16_t instr) {
-  const uint16_t val1 = memread16(aget(S(instr), WORD));
+  const uint32_t val1 = memread16(aget(S(instr), WORD));
   const uint16_t da = aget(D(instr), WORD);
-  const uint16_t val2 = memread16(da);
-  const uint16_t uval = (val1 + val2) & 0xFFFF;
+  const uint32_t val2 = memread16(da);
+  const uint16_t uval = val1 + val2;
   PS &= 0xFFF0;
   setZ(uval);
   if (uval & 0x8000) {
@@ -275,7 +393,7 @@ static void SUB(const uint16_t instr) {
   const uint16_t val1 = memread16(aget(S(instr), WORD));
   const uint16_t da = aget(D(instr), WORD);
   const uint16_t val2 = memread16(da);
-  const uint16_t uval = (val2 - val1) & 0xFFFF;
+  const uint16_t uval = val2 - val1;
   PS &= 0xFFF0;
   setZ(uval);
   if (uval & 0x8000) {
@@ -775,8 +893,10 @@ static void RESET() {
 
 void step() {
   PC = R[7];
-  uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
+  const uint16_t instr = unibus::read16(mmu::decode(PC, false, curuser));
   R[7] += 2;
+  
+  uint16_t uval;
 
   if (PRINTSTATE)
     printstate();
@@ -1018,24 +1138,7 @@ void trapat(uint16_t vec) { // , msg string) {
     panic();
   }
   printf("trap: %x\n", vec);
-
-  /*var prev uint16
-        defer func() {
-                t = recover()
-                switch t = t.(type) {
-                case trap:
-                        writedebug("red stack trap!\n")
-                        memory[0] = uint16(k.R[7])
-                        memory[1] = prev
-                        vec = 4
-                        panic("fatal")
-                case nil:
-                        break
-                default:
-                        panic(t)
-                }
-   */
-  uint16_t prev = PS;
+  const uint16_t prev = PS;
   switchmode(false);
   push(prev);
   push(R[7]);

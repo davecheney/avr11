@@ -17,7 +17,7 @@ enum {
   DEBUG_INTER = false,
   DEBUG_RK05 = false,
   DEBUG_MMU = false,
-  ENABLE_LKS = false,
+  ENABLE_LKS = true,
 };
 
 void printstate();
@@ -33,10 +33,10 @@ union addr {
 };
 void init();
 
-uint16_t read8(uint32_t addr);
-uint16_t read16(uint32_t addr);
-void write8(uint32_t a, uint16_t v);
-void write16(uint32_t a, uint16_t v);
+uint16_t read8(const uint32_t addr);
+uint16_t read16(const uint32_t addr);
+void write8(const uint32_t a, const uint16_t v);
+void write16(const uint32_t a, const uint16_t v);
 };
 
 namespace cons {
@@ -48,16 +48,7 @@ void poll();
 
 };
 
-namespace pdp11 {
-struct intr {
-  uint8_t vec;
-  uint8_t pri;
-};
-};
-
 #define ITABN 8
-
-extern pdp11::intr itab[ITABN];
 
 enum {
   FLAGN = 8,
@@ -67,7 +58,7 @@ enum {
 };
 
 namespace cpu {
-
+  
 extern uint16_t PC;
 extern uint16_t PS;
 extern uint16_t USP;
@@ -88,10 +79,10 @@ void handleinterrupt();
 
 namespace mmu {
 
-extern uint16_t SR0;
+extern uint32_t SR0;
 extern uint16_t SR2;
 
-uint32_t decode(uint16_t a, uint8_t w, uint8_t user);
+uint32_t decode(uint32_t a, bool w, bool user);
 uint16_t read16(uint32_t a);
 void write16(uint32_t a, uint16_t v);
 

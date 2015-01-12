@@ -58,7 +58,6 @@ void poll() {
     addchar(UDR0);
   }
 
-
   if ((TPS & 0x80) == 0) {
     if (++count > 32) {
       UDR0 = TPB & 0x7f;

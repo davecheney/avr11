@@ -6,11 +6,11 @@
 #define BAUD 9600
 #include <util/setbaud.h>
 #endif
-#include "avr.h"
+#include "avr11.h"
 
 SdFat sd;
 
-#ifdef __ATMEGA2560__ 
+#ifdef __ATMEGA2560__
 int uart_putchar(char c, FILE *stream) {
   if (c == '\n') {
     uart_putchar('\r', stream);
@@ -41,27 +41,27 @@ void uart_init(void) {
 
 void setup() {
   Serial.begin(9600);
-    #ifdef __ATMEGA2560__
+#ifdef __ATMEGA2560__
   // setup all the SPI pins, ensure all the devices are deselected
   pinMode(6, OUTPUT); digitalWrite(6, HIGH);
   pinMode(7, OUTPUT); digitalWrite(7, HIGH);
   pinMode(13, OUTPUT); digitalWrite(13, LOW);  // rk11
-    #endif
+#endif
   pinMode(18, OUTPUT); digitalWrite(18, LOW); // timing interrupt, high while CPU is stepping
 
   printf("Reset\n");
-  
-  #ifdef __ATMEGA2560__
+
+#ifdef __ATMEGA2560__
   // QuadRAM test
   xmem::SelfTestResults results;
 
   xmem::begin(false);
-  results=xmem::selfTest();
-  if(!results.succeeded) {
+  results = xmem::selfTest();
+  if (!results.succeeded) {
     printf("xram test failure\n");
     panic();
   }
-  #endif
+#endif
 
   // Initialize SdFat or print a detailed error message and halt
   if (!sd.begin(0x8, SPI_HALF_SPEED)) sd.initErrorHalt();
@@ -76,14 +76,20 @@ void setup() {
 uint16_t clkcounter;
 uint16_t instcounter;
 
-inline void digitalWriteDirect(int pin, boolean val){
-  if(val) g_APinDescription[pin].pPort -> PIO_SODR = g_APinDescription[pin].ulPin;
+inline void digitalWriteDirect(int pin, boolean val) {
+  if (val) g_APinDescription[pin].pPort -> PIO_SODR = g_APinDescription[pin].ulPin;
   else    g_APinDescription[pin].pPort -> PIO_CODR = g_APinDescription[pin].ulPin;
 }
 
+struct intr {
+  uint8_t vec;
+  uint8_t pri;
+} itab[ITABN];
+
+
 // On a 16Mhz atmega 2560 this loop costs 21usec per emulated instruction
 // This cost is just the cost of the loop and fetching the instruction at the PC.
-// Actual emulation of the instruction is another ~40 usec per instruction. 
+// Actual emulation of the instruction is another ~40 usec per instruction.
 static void loop0() {
   for (;;) {
     //the itab check is very cheap
@@ -91,11 +97,11 @@ static void loop0() {
       cpu::handleinterrupt();
       return; // exit from loop to reset trapbuf
     }
-       
+
     digitalWriteDirect(18, HIGH);//sbi(PORTD, 3);
     cpu::step();
     digitalWriteDirect(18, LOW);//cbi(PORTD, 3);
-    
+
     if (ENABLE_LKS) {
       ++clkcounter;
       if (clkcounter > ( 1 << 14)) {
