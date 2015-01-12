@@ -57,22 +57,21 @@ static uint16_t memread16(const uint16_t a) {
   return READ16(a);
 }
 
-static uint16_t memread(const uint16_t a, const uint8_t l) {
+static uint16_t memread(const uint32_t a, const uint32_t l) {
   if (isReg(a)) {
-    const uint8_t r = a & 7;
     if (isWord(l)) {
-      return R[r];
+      return R[a & 7];
     } else {
-      return R[r] & 0xFF;
+      return R[a & 7] & 0xFF;
     }
-  }
+  } 
   if (isWord(l)) {
     return READ16(a);
   }
   return READ8(a);
 }
 
-static void memwrite16(const uint16_t a, const uint16_t v) {
+static void memwrite16(const uint32_t a, const uint16_t v) {
   if (isReg(a)) {
     R[a & 7] = v;
   } else {
@@ -80,14 +79,13 @@ static void memwrite16(const uint16_t a, const uint16_t v) {
   }
 }
 
-static void memwrite(const uint16_t a, const uint8_t l, const uint16_t v) {
+static void memwrite(const uint32_t a, const uint32_t l, const uint16_t v) {
   if (isReg(a)) {
-    const uint8_t r = a & 7;
     if (isWord(l)) {
-      R[r] = v;
+      R[a & 7] = v;
     } else {
-      R[r] &= 0xFF00;
-      R[r] |= v;
+      R[a & 7] &= 0xFF00;
+      R[a & 7] |= v;
     }
   } else {
     if (isWord(l)) {

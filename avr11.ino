@@ -76,6 +76,11 @@ void setup() {
 uint16_t clkcounter;
 uint16_t instcounter;
 
+inline void digitalWriteDirect(int pin, boolean val){
+  if(val) g_APinDescription[pin].pPort -> PIO_SODR = g_APinDescription[pin].ulPin;
+  else    g_APinDescription[pin].pPort -> PIO_CODR = g_APinDescription[pin].ulPin;
+}
+
 // On a 16Mhz atmega 2560 this loop costs 21usec per emulated instruction
 // This cost is just the cost of the loop and fetching the instruction at the PC.
 // Actual emulation of the instruction is another ~40 usec per instruction. 
@@ -87,9 +92,9 @@ static void loop0() {
       return; // exit from loop to reset trapbuf
     }
        
-    digitalWrite(18, HIGH);//sbi(PORTD, 3);
+    digitalWriteDirect(18, HIGH);//sbi(PORTD, 3);
     cpu::step();
-    digitalWrite(18, LOW);//cbi(PORTD, 3);
+    digitalWriteDirect(18, LOW);//cbi(PORTD, 3);
     
     if (ENABLE_LKS) {
       ++clkcounter;
