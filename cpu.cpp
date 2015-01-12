@@ -33,31 +33,28 @@ void reset(void) {
 #define V (PS & FLAGV)
 #define C (PS & FLAGC)
 
-static uint16_t read8(const uint16_t a) {
-  return unibus::read8(mmu::decode(a, false, curuser));
-}
+#define READ8(a) unibus::read8(mmu::decode(a, false, curuser))
+#define READ16(a) unibus::read16(mmu::decode(a, false, curuser))
+#define WRITE8(a, v) unibus::write8(mmu::decode(a, true, curuser), v)
+#define WRITE16(a, v) unibus::write16(mmu::decode(a, true, curuser), v)
 
-static uint16_t read16(const uint16_t a) {
-  return unibus::read16(mmu::decode(a, false, curuser));
-}
-
-static void write8(const uint16_t a, const uint16_t v) {
-  unibus::write8(mmu::decode(a, true, curuser), v);
-}
-
-static void write16(const uint16_t a, const uint16_t v) {
-  unibus::write16(mmu::decode(a, true, curuser), v);
-}
-
-#define isReg(x) ((x & 0177770) == 0170000)
 #define WORD 2
 #define isWord(x) (x == WORD)
+#define isReg(x) ((x & 0177770) == 0170000)
+#define setZ(x) if (x == 0) { PS |= FLAGZ; }
+#define D(x) (x & 077)
+#define S(x) ((x & 07700) >> 6)
+#define L(x) (WORD - (x >> 15))
+#define SA(x) (aget(S(x), L(x)))
+#define DA(x) (aget(D(x), L(x)))
+#define MSB(x) ((instr >> 15) ? 0x80 : 0x8000)
+#define MAX(x) ((instr >> 15) ? 0xff : 0xffff)
 
 static uint16_t memread16(const uint16_t a) {
   if (isReg(a)) {
     return R[a & 7];
   }
-  return read16(a);
+  return READ16(a);
 }
 
 static uint16_t memread(const uint16_t a, const uint8_t l) {
@@ -70,16 +67,16 @@ static uint16_t memread(const uint16_t a, const uint8_t l) {
     }
   }
   if (isWord(l)) {
-    return read16(a);
+    return READ16(a);
   }
-  return read8(a);
+  return READ8(a);
 }
 
 static void memwrite16(const uint16_t a, const uint16_t v) {
   if (isReg(a)) {
     R[a & 7] = v;
   } else {
-    write16(a, v);
+    WRITE16(a, v);
   }
 }
 
@@ -94,26 +91,26 @@ static void memwrite(const uint16_t a, const uint8_t l, const uint16_t v) {
     }
   } else {
     if (isWord(l)) {
-      write16(a, v);
+      WRITE16(a, v);
     } else {
-      write8(a, v);
+      WRITE8(a, v);
     }
   }
 }
 
 static uint16_t fetch16() {
-  const uint16_t val = read16(R[7]);
+  const uint16_t val = READ16(R[7]);
   R[7] += 2;
   return val;
 }
 
 static void push(const uint16_t v) {
   R[6] -= 2;
-  write16(R[6], v);
+  WRITE16(R[6], v);
 }
 
 static uint16_t pop() {
-  const uint16_t val = read16(R[6]);
+  const uint16_t val = READ16(R[6]);
   R[6] += 2;
   return val;
 }
@@ -150,7 +147,7 @@ static uint16_t aget(uint8_t v, uint8_t l) {
       break;
   }
   if (v & 010) {
-    addr = read16(addr);
+    addr = READ16(addr);
   }
   return addr;
 }
@@ -184,15 +181,6 @@ void switchmode(const bool newm) {
     PS |= (1 << 13) | (1 << 12);
   }
 }
-
-#define setZ(x) if (x == 0) { PS |= FLAGZ; }
-#define D(x) (x & 077)
-#define S(x) ((x & 07700) >> 6)
-#define L(x) (WORD - (x >> 15))
-#define SA(x) (aget(S(x), L(x)))
-#define DA(x) (aget(D(x), L(x)))
-#define MSB(x) ((instr >> 15) ? 0x80 : 0x8000)
-#define MAX(x) ((instr >> 15) ? 0xff : 0xffff)
 
 static void MOV(const uint16_t instr) {
   uint16_t uval = memread(SA(instr), L(instr));
